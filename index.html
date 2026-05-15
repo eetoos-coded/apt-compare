@@ -1009,8 +1009,8 @@ const CONFIG = {
 let jibunData = [];
 let jibunReady = null;
 let state = {
-  A: { lawdCd: null, aptName: null, area: null, trades: [], jeonse: [], buildYear: null },
-  B: { lawdCd: null, aptName: null, area: null, trades: [], jeonse: [], buildYear: null },
+  A: { lawdCd: null, bjdongCode: null, aptName: null, area: null, trades: [], jeonse: [], buildYear: null, totalUnits: null, totalDong: null },
+  B: { lawdCd: null, bjdongCode: null, aptName: null, area: null, trades: [], jeonse: [], buildYear: null, totalUnits: null, totalDong: null },
 };
 let chart = null;
 
@@ -1173,6 +1173,7 @@ async function searchByDong(side) {
 
   const lawdCd = found.code.substring(0, 5);
   state[side].lawdCd = lawdCd;
+  state[side].bjdongCode = found.code; // 10자리 법정동코드
 
   clearResults(side);
   // 새 검색 시 이전 면적·단지 선택 초기화
@@ -1182,6 +1183,8 @@ async function searchByDong(side) {
   state[side].aptName = null;
   state[side].area = null;
   state[side].buildYear = null;
+  state[side].totalUnits = null;
+  state[side].totalDong = null;
   setLoading(side, true);
 
   try {
@@ -1339,14 +1342,34 @@ function selectAptAndPopulateAreas(side, aptName) {
     byears.forEach(y => { counts[y] = (counts[y] || 0) + 1; });
     const buildYear = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
     state[side].buildYear = buildYear;
-    // select label에 준공연도 표시
-    const label = document.querySelector('#aptSelectEl' + side)?.closest('.apt-select-wrap')?.querySelector('.apt-select-label');
-    const age = new Date().getFullYear() - parseInt(buildYear);
-    if (label) label.textContent = `${aptName} · 준공 ${buildYear}년 (${age}년 경과)`;
   } else {
     state[side].buildYear = null;
+  }
+
+  // 라벨 업데이트 함수 (세대수 조회 후 재사용)
+  function updateAptLabel() {
     const label = document.querySelector('#aptSelectEl' + side)?.closest('.apt-select-wrap')?.querySelector('.apt-select-label');
-    if (label) label.textContent = `${aptName} 선택됨`;
+    if (!label) return;
+    const yr = state[side].buildYear;
+    const units = state[side].totalUnits;
+    const dong = state[side].totalDong;
+    const buildPart = yr ? ` · 준공 ${yr}년 (${new Date().getFullYear() - parseInt(yr)}년 경과)` : '';
+    const unitPart = units ? ` · ${units.toLocaleString()}세대` : '';
+    const dongPart = dong ? ` ${dong}개동` : '';
+    label.textContent = `${aptName}${buildPart}${unitPart}${dongPart}`;
+  }
+  updateAptLabel();
+
+  // 세대수·동수 비동기 조회 (같은 키 사용, 실패 시 조용히 무시)
+  if (state[side].bjdongCode) {
+    fetchAptInfo(state[side].bjdongCode, aptName).then(info => {
+      if (info?.totalUnits) {
+        state[side].totalUnits = parseInt(info.totalUnits);
+        state[side].totalDong  = info.totalDong ? parseInt(info.totalDong) : null;
+        updateAptLabel();
+        if (state[side].trades.length) generateSummary();
+      }
+    });
   }
 
   const areaSel = document.getElementById('area' + side);
@@ -1541,6 +1564,52 @@ function loadMockData(side) {
 // ─────────────────────────────────────────────
 //  FETCH TRADES (국토교통부 API)
 // ─────────────────────────────────────────────
+async function fetchAptInfo(bjdongCode, aptName) {
+  // 공동주택 단지 목록 API로 세대수·동수 조회 (같은 serviceKey, 별도 구독 필요할 수 있음)
+  if (!CONFIG.API_KEY) return null;
+  const serviceKey = CONFIG.API_KEY.trim().includes('%') ? CONFIG.API_KEY.trim() : encodeURIComponent(CONFIG.API_KEY.trim());
+  const url = `https://apis.data.go.kr/1613000/AptListService2/getAptList?serviceKey=${serviceKey}&bjdongCode=${bjdongCode}&numOfRows=100&pageNo=1`;
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(tid);
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text.includes('<item>')) return null;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/xml');
+    const items = [...doc.querySelectorAll('item')];
+
+    // 단지명 최대 매칭
+    const norm = s => s.replace(/\s/g, '').toLowerCase();
+    const nameA = norm(aptName);
+    let best = null, bestScore = 0;
+    for (const item of items) {
+      const nameB = norm(item.querySelector('kaptName')?.textContent?.trim() || '');
+      let score = 0;
+      if (nameA === nameB) score = 200;
+      else if (nameA.includes(nameB) || nameB.includes(nameA)) score = Math.min(nameA.length, nameB.length) * 2;
+      else { for (const c of nameB) if (nameA.includes(c)) score++; }
+      if (score > bestScore) { bestScore = score; best = item; }
+    }
+    if (!best || bestScore < 3) return null;
+
+    const get = (...tags) => {
+      for (const tag of tags) {
+        const v = best.querySelector(tag)?.textContent?.trim();
+        if (v && parseInt(v) > 0) return v;
+      }
+      return null;
+    };
+    return {
+      totalUnits: get('kaptdaCnt', 'hoCnt', 'kaptTotHoCnt'),
+      totalDong:  get('kaptDongCnt', 'dongCnt'),
+    };
+  } catch (e) { return null; }
+}
+
 async function fetchTrades(lawdCd, dealYmd) {
   if (!CONFIG.API_KEY) throw new Error('NO_KEY');
 
@@ -1825,11 +1894,15 @@ function generateSummary() {
 
     let lines = [];
 
-    // 준공연도
+    // 준공연도 + 세대수
     const buildYr = state[side].buildYear;
-    if (buildYr) {
-      const age = new Date().getFullYear() - parseInt(buildYr);
-      lines.push(`준공: <span class="hl">${buildYr}년</span> (약 ${age}년 경과)`);
+    const totalUnits = state[side].totalUnits;
+    const totalDong  = state[side].totalDong;
+    if (buildYr || totalUnits) {
+      const agePart = buildYr ? `준공: <span class="hl">${buildYr}년</span> (약 ${new Date().getFullYear() - parseInt(buildYr)}년 경과)` : '';
+      const unitPart = totalUnits ? `세대수: <span class="hl">${totalUnits.toLocaleString()}세대</span>${totalDong ? ` / ${totalDong}개동` : ''}` : '';
+      const sizeLabel = totalUnits >= 1000 ? ' — 대단지' : totalUnits >= 500 ? ' — 중대단지' : totalUnits ? ' — 소단지' : '';
+      lines.push([agePart, unitPart + sizeLabel].filter(Boolean).join(' &nbsp;·&nbsp; '));
     }
 
     // 추세
@@ -1913,7 +1986,7 @@ function generateSummary() {
   }
 
   // ── 밸류에이션 점수 & 의견 ──
-  function getValuation(analysis, jeonseRatio, aptName, buildYear) {
+  function getValuation(analysis, jeonseRatio, aptName, buildYear, totalUnits, totalDong) {
     let score = 0;
     let factors = [];
 
@@ -1954,6 +2027,13 @@ function generateSummary() {
       const age = new Date().getFullYear() - parseInt(buildYear);
       const ageNote = age >= 25 ? ' — 재건축 기대감 가능' : age <= 5 ? ' — 신축 프리미엄' : '';
       factors.push(`준공 ${buildYear}년 (${age}년 경과)${ageNote}`);
+    }
+
+    // 5. 세대수 (참고용, 점수에 영향 없음)
+    if (totalUnits) {
+      const dongStr = totalDong ? ` / ${totalDong}개동` : '';
+      const sizeNote = totalUnits >= 1000 ? ' — 대단지 (환금성↑)' : totalUnits >= 500 ? ' — 중대단지' : ' — 소단지 (환금성↓)';
+      factors.push(`세대수 ${totalUnits.toLocaleString()}세대${dongStr}${sizeNote}`);
     }
 
     // 판정
@@ -2024,7 +2104,7 @@ function generateSummary() {
       const an = calcAnalysis(trades);
       const jRatio = calcJeonseRatio(jeonse, trades);
       const apt = state[side].aptName || `단지 ${side}`;
-      const v = getValuation(an, jRatio, apt, state[side].buildYear);
+      const v = getValuation(an, jRatio, apt, state[side].buildYear, state[side].totalUnits, state[side].totalDong);
       const sideL = side.toLowerCase();
 
       return `
@@ -2045,8 +2125,8 @@ function generateSummary() {
     if (hasA && hasB) {
       const anA = calcAnalysis(state.A.trades);
       const anB = calcAnalysis(state.B.trades);
-      const vA  = getValuation(anA, calcJeonseRatio(state.A.jeonse||[], state.A.trades), state.A.aptName||'A', state.A.buildYear);
-      const vB  = getValuation(anB, calcJeonseRatio(state.B.jeonse||[], state.B.trades), state.B.aptName||'B', state.B.buildYear);
+      const vA  = getValuation(anA, calcJeonseRatio(state.A.jeonse||[], state.A.trades), state.A.aptName||'A', state.A.buildYear, state.A.totalUnits, state.A.totalDong);
+      const vB  = getValuation(anB, calcJeonseRatio(state.B.jeonse||[], state.B.trades), state.B.aptName||'B', state.B.buildYear, state.B.totalUnits, state.B.totalDong);
 
       let compText = '';
       const diff = vA.score - vB.score;
