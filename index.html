@@ -1,0 +1,2436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>아파트 실거래가 비교</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #1a1a1a;
+    --surface2: #222222;
+    --border: #2a2a2a;
+    --border2: #333333;
+    --text: #e8e6e0;
+    --text2: #888;
+    --text3: #555;
+    --a: #4A90E2;
+    --a-dim: rgba(74,144,226,0.15);
+    --b: #E25A4A;
+    --b-dim: rgba(226,90,74,0.15);
+    --amber: #F5A623;
+    --green: #4caf7d;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+    --heading: 'Bebas Neue', cursive;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    justify-content: space-between;
+  }
+  #keyToggleBtn {
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+  }
+  #keyToggleBtn:hover { opacity: 1; }
+  header h1 {
+    font-family: var(--heading);
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--text);
+  }
+  header .subtitle {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── SELECTOR PANEL ── */
+  .selector-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .selector-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .selector-panel.panel-a { border-top: 3px solid var(--a); }
+  .selector-panel.panel-b { border-top: 3px solid var(--b); }
+
+  .panel-label {
+    font-family: var(--heading);
+    font-size: 22px;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-label .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .panel-a .badge { background: var(--a-dim); color: var(--a); }
+  .panel-b .badge { background: var(--b-dim); color: var(--b); }
+
+  .form-row { margin-bottom: 12px; }
+  .form-row label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  input[type="text"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="text"]:focus, select:focus { border-color: var(--a); }
+  .panel-b input[type="text"]:focus, .panel-b select:focus { border-color: var(--b); }
+  select option { background: var(--surface2); }
+  select:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* iOS Safari: 16px 미만이면 입력창 탭 시 자동 zoom 발생 → 모바일에서 강제 16px */
+  @media (max-width: 768px) {
+    input[type="text"], select, .apt-select-el { font-size: 16px; }
+  }
+
+  .search-hint {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+    font-family: var(--mono);
+  }
+  .search-hint.found { color: var(--green); }
+  .search-hint.error { color: var(--b); }
+
+  .btn-load {
+    width: 100%;
+    padding: 11px;
+    border-radius: 4px;
+    border: none;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.2s, transform 0.1s;
+    margin-top: 4px;
+  }
+  .btn-load:active { transform: scale(0.98); }
+  .btn-load:disabled { opacity: 0.35; cursor: not-allowed; }
+  .panel-a .btn-load { background: var(--a); color: #fff; }
+  .panel-b .btn-load { background: var(--b); color: #fff; }
+
+  .apt-loading {
+    display: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    padding: 8px 0;
+    text-align: center;
+  }
+
+  /* ── METRIC CARDS ── */
+  .cards-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.4s, transform 0.4s;
+  }
+  .card.visible { opacity: 1; transform: none; }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 10px;
+  }
+  .card-value {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text);
+  }
+  .card-value .unit {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text2);
+    margin-left: 3px;
+  }
+  .card-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 6px;
+  }
+  .card.card-a { border-left: 3px solid var(--a); }
+  .card.card-b { border-left: 3px solid var(--b); }
+  .card.card-diff { border-left: 3px solid var(--text3); }
+  .card.card-hoga-a { border-left: 3px solid var(--a); }
+  .card.card-hoga-b { border-left: 3px solid var(--b); }
+  .card.card-jeonse-a { border-left: 3px solid var(--a); }
+  .card.card-jeonse-b { border-left: 3px solid var(--b); }
+
+  .rate-bar {
+    margin-top: 10px;
+    height: 3px;
+    background: var(--border2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .rate-fill-a { height: 100%; background: var(--a); border-radius: 2px; transition: width 0.6s; }
+  .rate-fill-b { height: 100%; background: var(--b); border-radius: 2px; transition: width 0.6s; }
+
+  .legend-dash {
+    width: 16px; height: 2px;
+    border-top: 2px dashed currentColor;
+    display: inline-block;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  .card-value.positive { color: var(--b); }
+  .card-value.negative { color: var(--a); }
+
+  /* Hoga status states */
+  .hoga-loading { display: flex; align-items: center; gap: 8px; }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--text2);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hoga-status-text {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .hoga-blocked { color: var(--amber) !important; }
+  .hoga-error { color: var(--b) !important; }
+  .hoga-success { color: var(--text) !important; }
+
+  .btn-retry {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 10px;
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .btn-retry:hover { border-color: var(--text2); }
+
+  /* ── CHART + TABLE ── */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 16px;
+  }
+
+  .chart-panel, .table-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .chart-panel.visible, .table-panel.visible { opacity: 1; }
+  .analysis-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 16px;
+    grid-column: 1 / -1;
+  }
+  .summary-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 16px;
+  }
+  .summary-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 680px) {
+    .summary-body { grid-template-columns: 1fr; }
+  }
+  .summary-block {
+    padding: 12px 14px;
+    background: var(--surface2);
+    border-radius: 6px;
+    border-left: 3px solid var(--border2);
+  }
+  .summary-block.side-a { border-left-color: var(--a); }
+  .summary-block.side-b { border-left-color: var(--b); }
+  .summary-block.compare { border-left-color: var(--amber); grid-column: 1 / -1; }
+  .summary-block-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 10px;
+  }
+  .summary-line {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.9;
+  }
+  .summary-line .hl { color: var(--text); font-weight: 600; }
+  .summary-line .up { color: var(--b); }
+  .summary-line .down { color: var(--a); }
+  .summary-line .neutral { color: var(--amber); }
+  .signal-box {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .signal-buy { background: rgba(74,144,226,0.12); color: var(--a); border: 1px solid rgba(74,144,226,0.3); }
+  .signal-caution { background: rgba(245,166,35,0.1); color: var(--amber); border: 1px solid rgba(245,166,35,0.3); }
+  .signal-watch { background: rgba(226,90,74,0.1); color: var(--b); border: 1px solid rgba(226,90,74,0.3); }
+
+  /* ── 종합 밸류에이션 블록 ── */
+  .summary-block.valuation { border-left-color: #a78bfa; grid-column: 1 / -1; }
+  .valuation-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 10px 0;
+  }
+  @media (max-width: 680px) { .valuation-row { grid-template-columns: 1fr; } }
+  .valuation-card {
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--border2);
+  }
+  .valuation-card.side-a { border-top: 2px solid var(--a); }
+  .valuation-card.side-b { border-top: 2px solid var(--b); }
+  .valuation-verdict-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .verdict-badge {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-family: var(--mono);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .verdict-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .verdict-factors {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.8;
+    margin-bottom: 8px;
+  }
+  .verdict-opinion {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.6;
+    background: var(--surface2);
+    border-radius: 4px;
+    padding: 7px 9px;
+    font-weight: 500;
+  }
+  .valuation-conclusion {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: rgba(167,139,250,0.08);
+    border: 1px solid rgba(167,139,250,0.25);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.8;
+  }
+  .valuation-conclusion strong { color: #a78bfa; }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title .legend {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+  }
+  .legend-item {
+    font-size: 11px;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+  }
+
+  .chart-container { position: relative; height: 320px; }
+
+  /* Table */
+  .table-scroll { overflow-y: auto; max-height: 380px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td {
+    padding: 10px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+  }
+  .badge-a {
+    display: inline-block;
+    padding: 2px 7px;
+    background: var(--a-dim);
+    color: var(--a);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .badge-b {
+    display: inline-block;
+    padding: 2px 7px;
+    background: var(--b-dim);
+    color: var(--b);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--text3);
+  }
+  .empty-state h2 {
+    font-family: var(--heading);
+    font-size: 32px;
+    letter-spacing: 3px;
+    margin-bottom: 12px;
+  }
+  .empty-state p {
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 1024px) {
+    .cards-row { grid-template-columns: repeat(3, 1fr); }
+    .jeonse-cards-row { grid-template-columns: 1fr 1fr !important; }
+    .analysis-cards-row { grid-template-columns: 1fr 1fr !important; }
+    .bottom-grid { grid-template-columns: 1fr; }
+    .table-panel { max-height: none; }
+  }
+  @media (max-width: 680px) {
+    main { padding: 16px; }
+    header { padding: 16px; }
+    .selector-grid { grid-template-columns: 1fr; }
+    .cards-row { grid-template-columns: 1fr 1fr; }
+    .jeonse-cards-row { grid-template-columns: 1fr 1fr !important; }
+    .analysis-cards-row { grid-template-columns: 1fr 1fr !important; }
+  }
+  @media (max-width: 400px) {
+    .cards-row { grid-template-columns: 1fr; }
+    .jeonse-cards-row { grid-template-columns: 1fr !important; }
+    .analysis-cards-row { grid-template-columns: 1fr 1fr !important; }
+  }
+
+  /* ── SEARCH ROW ── */
+  .search-row {
+    display: flex;
+    gap: 8px;
+  }
+  .search-row input { flex: 1; }
+  .btn-search {
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .panel-a .btn-search:hover { border-color: var(--a); color: var(--a); }
+  .panel-b .btn-search:hover { border-color: var(--b); color: var(--b); }
+
+  /* ── APT RESULTS ── */
+  .apt-results { margin-bottom: 4px; }
+  .apt-result-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .apt-result-item:hover { background: var(--surface2); }
+  .apt-result-item.selected { border-color: var(--a); background: var(--a-dim); }
+  .panel-b .apt-result-item.selected { border-color: var(--b); background: var(--b-dim); }
+  .apt-result-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .apt-result-addr {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+  .apt-result-badge {
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-top: 2px;
+    background: var(--surface2);
+    color: var(--text3);
+    border: 1px solid var(--border2);
+  }
+  .apt-result-msg {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    padding: 8px 0;
+  }
+  .apt-result-msg.error { color: var(--b); }
+  .apt-result-msg.warn  { color: var(--amber); }
+  .apt-select-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .apt-select-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0.5px;
+  }
+  .apt-select-el {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .panel-a .apt-select-el:focus { border-color: var(--a); }
+  .panel-b .apt-select-el:focus { border-color: var(--b); }
+  .apt-select-el option { background: var(--surface2); }
+
+  /* ── PULSE ANIMATION ── */
+  @keyframes pulse-border {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+  .card.loading-pulse { animation: pulse-border 1.2s ease-in-out infinite; }
+
+  /* ── SHAKE ANIMATION ── */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    15%       { transform: translateX(-6px); }
+    35%       { transform: translateX(6px); }
+    55%       { transform: translateX(-4px); }
+    75%       { transform: translateX(4px); }
+  }
+  .shake { animation: shake 0.45s ease; }
+  .api-key-bar input.needs-key { border-color: var(--b) !important; box-shadow: 0 0 0 2px rgba(226,90,74,0.25); }
+
+  /* ── TOOLTIP OVERRIDE ── */
+  .chart-tooltip-inner {
+    background: var(--surface2) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 6px !important;
+  }
+
+  /* ── API KEY BAR ── */
+  .api-key-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .api-key-bar label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .api-key-bar input {
+    flex: 1;
+    min-width: 200px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+  }
+  @media (max-width: 768px) {
+    .api-key-bar input { font-size: 16px; }
+  }
+  .api-key-bar input:focus { border-color: var(--a); }
+  .api-key-bar .btn-apply {
+    padding: 6px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .api-key-bar .btn-apply:hover { border-color: var(--a); color: var(--a); }
+  .api-key-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .api-key-status.ok { color: var(--green); }
+  .api-key-status.fail { color: var(--b); }
+  .api-key-status.warn { color: var(--amber); }
+  .api-key-hint {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+  }
+  .api-key-hint a { color: var(--a); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>APT COMPARE</h1>
+    <div class="subtitle">매매가 &amp; 전세가 비교 대시보드</div>
+  </div>
+  <button id="keyToggleBtn" onclick="toggleKeyBar()" title="API 키 설정">🔑</button>
+</header>
+
+<div class="api-key-bar" id="apiKeyBar" style="display:none">
+  <label>국토교통부 API 키</label>
+  <input type="text" id="apiKeyInput" placeholder="공공데이터포털 Encoding 키를 붙여넣기 하세요" autocomplete="off">
+  <button class="btn-apply" onclick="applyApiKey()">적용</button>
+  <button class="btn-apply" onclick="hideKeyBar()" style="margin-left:2px;opacity:0.6">✕</button>
+  <span class="api-key-status" id="apiKeyStatus"></span>
+  <span class="api-key-hint">키 발급: <a href="https://www.data.go.kr/data/15058747/openapi.do" target="_blank">data.go.kr → 아파트매매 실거래가</a> · Encoding 버전 사용</span>
+</div>
+
+<main>
+  <!-- SELECTOR -->
+  <div class="selector-grid">
+    <!-- Panel A -->
+    <div class="selector-panel panel-a">
+      <div class="panel-label"><span class="badge">A</span> 단지 A</div>
+
+      <div class="form-row">
+        <label>지역 (구 / 동)</label>
+        <div class="search-row">
+          <input type="text" id="dongA" placeholder="구/동 이름 입력 (예: 강남구 대치동)" autocomplete="off"
+                 onkeydown="if(event.key==='Enter') searchByDong('A')">
+          <button class="btn-search" onclick="searchByDong('A')">검색</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>아파트 이름 <span style="color:var(--text3);font-size:10px">(선택 — 비워두면 전체 표시)</span></label>
+        <input type="text" id="aptFilterA" placeholder="예: 래미안, 돈암삼성" autocomplete="off"
+               onkeydown="if(event.key==='Enter') searchByDong('A')">
+      </div>
+
+      <div class="apt-loading" id="loadingA">
+        <span class="spinner" style="display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+        검색 중…
+      </div>
+
+      <div id="aptResultsA" class="apt-results"></div>
+
+      <div class="form-row" id="areaRowA" style="display:none">
+        <label>전용면적 (㎡)</label>
+        <select id="areaA" >
+          <option value="">— 면적 선택 —</option>
+        </select>
+      </div>
+
+      <button class="btn-load" id="btnA" onclick="loadData('A')" disabled>
+        실거래가 불러오기
+      </button>
+    </div>
+
+    <!-- Panel B -->
+    <div class="selector-panel panel-b">
+      <div class="panel-label"><span class="badge">B</span> 단지 B</div>
+
+      <div class="form-row">
+        <label>지역 (구 / 동)</label>
+        <div class="search-row">
+          <input type="text" id="dongB" placeholder="구/동 이름 입력 (예: 마포구 아현동)" autocomplete="off"
+                 onkeydown="if(event.key==='Enter') searchByDong('B')">
+          <button class="btn-search" onclick="searchByDong('B')">검색</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>아파트 이름 <span style="color:var(--text3);font-size:10px">(선택 — 비워두면 전체 표시)</span></label>
+        <input type="text" id="aptFilterB" placeholder="예: 길음뉴타운, 래미안" autocomplete="off"
+               onkeydown="if(event.key==='Enter') searchByDong('B')">
+      </div>
+
+      <div class="apt-loading" id="loadingB">
+        <span class="spinner" style="display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+        검색 중…
+      </div>
+
+      <div id="aptResultsB" class="apt-results"></div>
+
+      <div class="form-row" id="areaRowB" style="display:none">
+        <label>전용면적 (㎡)</label>
+        <select id="areaB" >
+          <option value="">— 면적 선택 —</option>
+        </select>
+      </div>
+
+      <button class="btn-load" id="btnB" onclick="loadData('B')" disabled>
+        실거래가 불러오기
+      </button>
+    </div>
+  </div>
+
+  <!-- METRIC CARDS -->
+  <div class="cards-row">
+    <div class="card card-a" id="cardA">
+      <div class="card-label">단지 A · 최근 실거래가</div>
+      <div class="card-value" id="valA">—</div>
+      <div class="card-sub" id="subA">데이터 없음</div>
+    </div>
+    <div class="card card-b" id="cardB">
+      <div class="card-label">단지 B · 최근 실거래가</div>
+      <div class="card-value" id="valB">—</div>
+      <div class="card-sub" id="subB">데이터 없음</div>
+    </div>
+    <div class="card card-diff" id="cardDiff">
+      <div class="card-label">차액 (A − B)</div>
+      <div class="card-value" id="valDiff">—</div>
+      <div class="card-sub" id="subDiff">두 단지 모두 선택 필요</div>
+    </div>
+    <div class="card card-hoga-a" id="cardHogaA">
+      <div class="card-label">단지 A · 12개월 평균</div>
+      <div id="hogaAContent">
+        <div class="card-value">—</div>
+        <div class="card-sub">데이터 없음</div>
+      </div>
+    </div>
+    <div class="card card-hoga-b" id="cardHogaB">
+      <div class="card-label">단지 B · 12개월 평균</div>
+      <div id="hogaBContent">
+        <div class="card-value">—</div>
+        <div class="card-sub">데이터 없음</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JEONSE RATE CARDS -->
+  <div class="cards-row jeonse-cards-row" id="jeonseCardsRow" style="grid-template-columns:1fr 1fr;margin-bottom:24px;">
+    <div class="card card-jeonse-a" id="cardJeonseA">
+      <div class="card-label">단지 A · 전세가율</div>
+      <div id="jeonseAContent">
+        <div class="card-value" style="color:var(--text3)">—</div>
+        <div class="card-sub">전세 데이터 없음</div>
+      </div>
+    </div>
+    <div class="card card-jeonse-b" id="cardJeonseB">
+      <div class="card-label">단지 B · 전세가율</div>
+      <div id="jeonseBContent">
+        <div class="card-value" style="color:var(--text3)">—</div>
+        <div class="card-sub">전세 데이터 없음</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYSIS CARDS -->
+  <div class="cards-row analysis-cards-row" id="analysisCardsRow" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:24px;">
+    <div class="card card-a" id="cardTrendA">
+      <div class="card-label">단지 A · 가격 추세</div>
+      <div id="trendAContent">
+        <div class="card-value" style="color:var(--text3)">—</div>
+        <div class="card-sub">데이터 없음</div>
+      </div>
+    </div>
+    <div class="card card-a" id="cardPosA">
+      <div class="card-label">단지 A · 24개월 위치</div>
+      <div id="posAContent">
+        <div class="card-value" style="color:var(--text3)">—</div>
+        <div class="card-sub">데이터 없음</div>
+      </div>
+    </div>
+    <div class="card card-b" id="cardTrendB">
+      <div class="card-label">단지 B · 가격 추세</div>
+      <div id="trendBContent">
+        <div class="card-value" style="color:var(--text3)">—</div>
+        <div class="card-sub">데이터 없음</div>
+      </div>
+    </div>
+    <div class="card card-b" id="cardPosB">
+      <div class="card-label">단지 B · 24개월 위치</div>
+      <div id="posBContent">
+        <div class="card-value" style="color:var(--text3)">—</div>
+        <div class="card-sub">데이터 없음</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART + TABLE -->
+  <div class="bottom-grid">
+    <div class="chart-panel" id="chartPanel">
+      <div class="panel-title">
+        실거래가 추이 (최근 24개월)
+        <div class="legend">
+          <span class="legend-item"><span class="legend-dot" style="background:var(--a)"></span>A 매매</span>
+          <span class="legend-item"><span class="legend-dash" style="color:var(--a)"></span>A 전세</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--b)"></span>B 매매</span>
+          <span class="legend-item"><span class="legend-dash" style="color:var(--b)"></span>B 전세</span>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="myChart"></canvas>
+      </div>
+      <div class="empty-state" id="chartEmpty">
+        <h2>NO DATA</h2>
+        <p>단지를 선택하고 데이터를<br>불러오면 차트가 표시됩니다.</p>
+      </div>
+    </div>
+
+    <div class="table-panel" id="tablePanel">
+      <div class="panel-title">최근 거래 내역</div>
+      <div class="table-scroll">
+        <table id="dealTable">
+          <thead>
+            <tr>
+              <th>단지</th>
+              <th>계약일</th>
+              <th>금액</th>
+              <th>면적</th>
+              <th>층</th>
+            </tr>
+          </thead>
+          <tbody id="dealTbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text3);padding:30px 0;font-family:var(--mono);font-size:12px;">데이터 없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="analysis-summary" id="analysisSummary" style="display:none;margin-bottom:0;">
+    <div class="summary-title">📊 시장 분석 요약</div>
+    <div id="summaryContent" class="summary-body"></div>
+  </div>
+</main>
+
+<script>
+const JIBUN_DATA = [{"code":"1111010100","name":"서울특별시 종로구 청운동"},{"code":"1111010200","name":"서울특별시 종로구 신교동"},{"code":"1111010300","name":"서울특별시 종로구 궁정동"},{"code":"1111010400","name":"서울특별시 종로구 효자동"},{"code":"1111010500","name":"서울특별시 종로구 창성동"},{"code":"1111010600","name":"서울특별시 종로구 통의동"},{"code":"1111010700","name":"서울특별시 종로구 적선동"},{"code":"1111010800","name":"서울특별시 종로구 통인동"},{"code":"1111010900","name":"서울특별시 종로구 누상동"},{"code":"1111011000","name":"서울특별시 종로구 누하동"},{"code":"1111011100","name":"서울특별시 종로구 옥인동"},{"code":"1111011200","name":"서울특별시 종로구 체부동"},{"code":"1111011300","name":"서울특별시 종로구 필운동"},{"code":"1111011400","name":"서울특별시 종로구 내자동"},{"code":"1111011500","name":"서울특별시 종로구 사직동"},{"code":"1111011600","name":"서울특별시 종로구 도렴동"},{"code":"1111011700","name":"서울특별시 종로구 당주동"},{"code":"1111011800","name":"서울특별시 종로구 내수동"},{"code":"1111011900","name":"서울특별시 종로구 세종로"},{"code":"1111012000","name":"서울특별시 종로구 신문로1가"},{"code":"1111012100","name":"서울특별시 종로구 신문로2가"},{"code":"1111012200","name":"서울특별시 종로구 청진동"},{"code":"1111012300","name":"서울특별시 종로구 인사동"},{"code":"1111012400","name":"서울특별시 종로구 낙원동"},{"code":"1111012500","name":"서울특별시 종로구 권농동"},{"code":"1111012600","name":"서울특별시 종로구 운니동"},{"code":"1111012700","name":"서울특별시 종로구 익선동"},{"code":"1111012800","name":"서울특별시 종로구 경운동"},{"code":"1111012900","name":"서울특별시 종로구 관수동"},{"code":"1111013000","name":"서울특별시 종로구 관철동"},{"code":"1111013100","name":"서울특별시 종로구 인의동"},{"code":"1111013200","name":"서울특별시 종로구 예지동"},{"code":"1111013300","name":"서울특별시 종로구 원남동"},{"code":"1111013400","name":"서울특별시 종로구 연지동"},{"code":"1111013500","name":"서울특별시 종로구 묘동"},{"code":"1111013600","name":"서울특별시 종로구 봉익동"},{"code":"1111013700","name":"서울특별시 종로구 돈의동"},{"code":"1111013800","name":"서울특별시 종로구 장사동"},{"code":"1111013900","name":"서울특별시 종로구 관훈동"},{"code":"1111014000","name":"서울특별시 종로구 소격동"},{"code":"1111014100","name":"서울특별시 종로구 화동"},{"code":"1111014200","name":"서울특별시 종로구 안국동"},{"code":"1111014300","name":"서울특별시 종로구 재동"},{"code":"1111014400","name":"서울특별시 종로구 계동"},{"code":"1111014500","name":"서울특별시 종로구 원서동"},{"code":"1111014600","name":"서울특별시 종로구 가회동"},{"code":"1111014700","name":"서울특별시 종로구 삼청동"},{"code":"1111014800","name":"서울특별시 종로구 혜화동"},{"code":"1111014900","name":"서울특별시 종로구 명륜1가"},{"code":"1111015000","name":"서울특별시 종로구 명륜2가"},{"code":"1111015100","name":"서울특별시 종로구 명륜4가"},{"code":"1111015200","name":"서울특별시 종로구 명륜3가"},{"code":"1111015300","name":"서울특별시 종로구 동숭동"},{"code":"1111015400","name":"서울특별시 종로구 연건동"},{"code":"1111015500","name":"서울특별시 종로구 충신동"},{"code":"1111015600","name":"서울특별시 종로구 이화동"},{"code":"1111015700","name":"서울특별시 종로구 낙산동"},{"code":"1111015800","name":"서울특별시 종로구 숭인동"},{"code":"1111015900","name":"서울특별시 종로구 창신동"},{"code":"1111016000","name":"서울특별시 종로구 교남동"},{"code":"1111016100","name":"서울특별시 종로구 평창동"},{"code":"1111016200","name":"서울특별시 종로구 부암동"},{"code":"1111016300","name":"서울특별시 종로구 홍지동"},{"code":"1111016400","name":"서울특별시 종로구 신영동"},{"code":"1111016500","name":"서울특별시 종로구 구기동"},{"code":"1114010100","name":"서울특별시 중구 소공동"},{"code":"1114010200","name":"서울특별시 중구 회현동1가"},{"code":"1114010300","name":"서울특별시 중구 회현동2가"},{"code":"1114010400","name":"서울특별시 중구 회현동3가"},{"code":"1114010500","name":"서울특별시 중구 조선호텔"},{"code":"1114010600","name":"서울특별시 중구 태평로1가"},{"code":"1114010700","name":"서울특별시 중구 태평로2가"},{"code":"1114010800","name":"서울특별시 중구 남대문로1가"},{"code":"1114010900","name":"서울특별시 중구 남대문로2가"},{"code":"1114011000","name":"서울특별시 중구 남대문로3가"},{"code":"1114011100","name":"서울특별시 중구 남대문로4가"},{"code":"1114011200","name":"서울특별시 중구 남대문로5가"},{"code":"1114011300","name":"서울특별시 중구 북창동"},{"code":"1114011400","name":"서울특별시 중구 다동"},{"code":"1114011500","name":"서울특별시 중구 무교동"},{"code":"1114011600","name":"서울특별시 중구 명동1가"},{"code":"1114011700","name":"서울특별시 중구 명동2가"},{"code":"1114011800","name":"서울특별시 중구 을지로1가"},{"code":"1114011900","name":"서울특별시 중구 을지로2가"},{"code":"1114012000","name":"서울특별시 중구 을지로3가"},{"code":"1114012100","name":"서울특별시 중구 을지로4가"},{"code":"1114012200","name":"서울특별시 중구 을지로5가"},{"code":"1114012300","name":"서울특별시 중구 을지로6가"},{"code":"1114012400","name":"서울특별시 중구 을지로7가"},{"code":"1114012500","name":"서울특별시 중구 인현동1가"},{"code":"1114012600","name":"서울특별시 중구 인현동2가"},{"code":"1114012700","name":"서울특별시 중구 저동1가"},{"code":"1114012800","name":"서울특별시 중구 저동2가"},{"code":"1114012900","name":"서울특별시 중구 충무로1가"},{"code":"1114013000","name":"서울특별시 중구 충무로2가"},{"code":"1114013100","name":"서울특별시 중구 충무로3가"},{"code":"1114013200","name":"서울특별시 중구 충무로4가"},{"code":"1114013300","name":"서울특별시 중구 충무로5가"},{"code":"1114013400","name":"서울특별시 중구 초동"},{"code":"1114013500","name":"서울특별시 중구 주자동"},{"code":"1114013600","name":"서울특별시 중구 장교동"},{"code":"1114013700","name":"서울특별시 중구 수표동"},{"code":"1114013800","name":"서울특별시 중구 오장동"},{"code":"1114013900","name":"서울특별시 중구 예관동"},{"code":"1114014000","name":"서울특별시 중구 묵정동"},{"code":"1114014100","name":"서울특별시 중구 필동1가"},{"code":"1114014200","name":"서울특별시 중구 필동2가"},{"code":"1114014300","name":"서울특별시 중구 필동3가"},{"code":"1114014400","name":"서울특별시 중구 남학동"},{"code":"1114014500","name":"서울특별시 중구 주교동"},{"code":"1114014600","name":"서울특별시 중구 방산동"},{"code":"1114014700","name":"서울특별시 중구 입정동"},{"code":"1114014800","name":"서울특별시 중구 산림동"},{"code":"1114014900","name":"서울특별시 중구 쌍림동"},{"code":"1114015000","name":"서울특별시 중구 광희동1가"},{"code":"1114015100","name":"서울특별시 중구 광희동2가"},{"code":"1114015200","name":"서울특별시 중구 신당동"},{"code":"1114015300","name":"서울특별시 중구 황학동"},{"code":"1114015400","name":"서울특별시 중구 흥인동"},{"code":"1114015500","name":"서울특별시 중구 동화동"},{"code":"1114015600","name":"서울특별시 중구 만리동1가"},{"code":"1114015700","name":"서울특별시 중구 만리동2가"},{"code":"1114015800","name":"서울특별시 중구 순화동"},{"code":"1114015900","name":"서울특별시 중구 의주로1가"},{"code":"1114016000","name":"서울특별시 중구 의주로2가"},{"code":"1114016100","name":"서울특별시 중구 봉래동1가"},{"code":"1114016200","name":"서울특별시 중구 봉래동2가"},{"code":"1114016300","name":"서울특별시 중구 중림동"},{"code":"1114016400","name":"서울특별시 중구 의주로2가"},{"code":"1117010100","name":"서울특별시 용산구 후암동"},{"code":"1117010200","name":"서울특별시 용산구 용산동2가"},{"code":"1117010300","name":"서울특별시 용산구 용산동4가"},{"code":"1117010400","name":"서울특별시 용산구 용산동5가"},{"code":"1117010500","name":"서울특별시 용산구 용산동6가"},{"code":"1117010600","name":"서울특별시 용산구 이태원동"},{"code":"1117010700","name":"서울특별시 용산구 한남동"},{"code":"1117010800","name":"서울특별시 용산구 동빙고동"},{"code":"1117010900","name":"서울특별시 용산구 서빙고동"},{"code":"1117011000","name":"서울특별시 용산구 보광동"},{"code":"1117011100","name":"서울특별시 용산구 청파동1가"},{"code":"1117011200","name":"서울특별시 용산구 청파동2가"},{"code":"1117011300","name":"서울특별시 용산구 청파동3가"},{"code":"1117011400","name":"서울특별시 용산구 원효로1가"},{"code":"1117011500","name":"서울특별시 용산구 원효로2가"},{"code":"1117011600","name":"서울특별시 용산구 원효로3가"},{"code":"1117011700","name":"서울특별시 용산구 원효로4가"},{"code":"1117011800","name":"서울특별시 용산구 신계동"},{"code":"1117011900","name":"서울특별시 용산구 효창동"},{"code":"1117012000","name":"서울특별시 용산구 도원동"},{"code":"1117012100","name":"서울특별시 용산구 마포동"},{"code":"1117012200","name":"서울특별시 용산구 도동"},{"code":"1117012300","name":"서울특별시 용산구 문배동"},{"code":"1117012400","name":"서울특별시 용산구 산천동"},{"code":"1117012500","name":"서울특별시 용산구 남영동"},{"code":"1120010100","name":"서울특별시 성동구 상왕십리동"},{"code":"1120010200","name":"서울특별시 성동구 하왕십리동"},{"code":"1120010300","name":"서울특별시 성동구 홍익동"},{"code":"1120010400","name":"서울특별시 성동구 도선동"},{"code":"1120010500","name":"서울특별시 성동구 마장동"},{"code":"1120010600","name":"서울특별시 성동구 사근동"},{"code":"1120010700","name":"서울특별시 성동구 행당동"},{"code":"1120010800","name":"서울특별시 성동구 응봉동"},{"code":"1120010900","name":"서울특별시 성동구 금호동1가"},{"code":"1120011000","name":"서울특별시 성동구 금호동2가"},{"code":"1120011100","name":"서울특별시 성동구 금호동3가"},{"code":"1120011200","name":"서울특별시 성동구 금호동4가"},{"code":"1120011300","name":"서울특별시 성동구 옥수동"},{"code":"1120011400","name":"서울특별시 성동구 성수동1가"},{"code":"1120011500","name":"서울특별시 성동구 성수동2가"},{"code":"1120011600","name":"서울특별시 성동구 송정동"},{"code":"1120011700","name":"서울특별시 성동구 용답동"},{"code":"1120011800","name":"서울특별시 성동구 연무동"},{"code":"1120011900","name":"서울특별시 성동구 자양동"},{"code":"1121510100","name":"서울특별시 광진구 중곡동"},{"code":"1121510200","name":"서울특별시 광진구 능동"},{"code":"1121510300","name":"서울특별시 광진구 구의동"},{"code":"1121510400","name":"서울특별시 광진구 광장동"},{"code":"1121510500","name":"서울특별시 광진구 자양동"},{"code":"1121510600","name":"서울특별시 광진구 화양동"},{"code":"1121510700","name":"서울특별시 광진구 군자동"},{"code":"1123010100","name":"서울특별시 동대문구 신설동"},{"code":"1123010200","name":"서울특별시 동대문구 용두동"},{"code":"1123010300","name":"서울특별시 동대문구 제기동"},{"code":"1123010400","name":"서울특별시 동대문구 전농동"},{"code":"1123010500","name":"서울특별시 동대문구 답십리동"},{"code":"1123010600","name":"서울특별시 동대문구 장안동"},{"code":"1123010700","name":"서울특별시 동대문구 청량리동"},{"code":"1123010800","name":"서울특별시 동대문구 회기동"},{"code":"1123010900","name":"서울특별시 동대문구 휘경동"},{"code":"1123011000","name":"서울특별시 동대문구 이문동"},{"code":"1126010100","name":"서울특별시 중랑구 면목동"},{"code":"1126010200","name":"서울특별시 중랑구 중화동"},{"code":"1126010300","name":"서울특별시 중랑구 묵동"},{"code":"1126010400","name":"서울특별시 중랑구 망우동"},{"code":"1126010500","name":"서울특별시 중랑구 신내동"},{"code":"1126010600","name":"서울특별시 중랑구 상봉동"},{"code":"1126010700","name":"서울특별시 중랑구 봉화동"},{"code":"1129010100","name":"서울특별시 성북구 성북동"},{"code":"1129010200","name":"서울특별시 성북구 성북동1가"},{"code":"1129010300","name":"서울특별시 성북구 돈암동"},{"code":"1129010400","name":"서울특별시 성북구 동소문동1가"},{"code":"1129010500","name":"서울특별시 성북구 동소문동2가"},{"code":"1129010600","name":"서울특별시 성북구 동소문동3가"},{"code":"1129010700","name":"서울특별시 성북구 동소문동4가"},{"code":"1129010800","name":"서울특별시 성북구 동소문동5가"},{"code":"1129010900","name":"서울특별시 성북구 동소문동6가"},{"code":"1129011000","name":"서울특별시 성북구 동소문동7가"},{"code":"1129011100","name":"서울특별시 성북구 안암동1가"},{"code":"1129011200","name":"서울특별시 성북구 안암동2가"},{"code":"1129011300","name":"서울특별시 성북구 안암동3가"},{"code":"1129011400","name":"서울특별시 성북구 안암동4가"},{"code":"1129011500","name":"서울특별시 성북구 안암동5가"},{"code":"1129011600","name":"서울특별시 성북구 보문동1가"},{"code":"1129011700","name":"서울특별시 성북구 보문동2가"},{"code":"1129011800","name":"서울특별시 성북구 보문동3가"},{"code":"1129011900","name":"서울특별시 성북구 보문동4가"},{"code":"1129012000","name":"서울특별시 성북구 보문동5가"},{"code":"1129012100","name":"서울특별시 성북구 보문동6가"},{"code":"1129012200","name":"서울특별시 성북구 보문동7가"},{"code":"1129012300","name":"서울특별시 성북구 정릉동"},{"code":"1129012400","name":"서울특별시 성북구 길음동"},{"code":"1129012500","name":"서울특별시 성북구 종암동"},{"code":"1129012600","name":"서울특별시 성북구 하월곡동"},{"code":"1129012700","name":"서울특별시 성북구 상월곡동"},{"code":"1129012800","name":"서울특별시 성북구 장위동"},{"code":"1129012900","name":"서울특별시 성북구 석관동"},{"code":"1130510100","name":"서울특별시 강북구 미아동"},{"code":"1130510200","name":"서울특별시 강북구 번동"},{"code":"1130510300","name":"서울특별시 강북구 수유동"},{"code":"1130510400","name":"서울특별시 강북구 우이동"},{"code":"1132010100","name":"서울특별시 도봉구 쌍문동"},{"code":"1132010200","name":"서울특별시 도봉구 방학동"},{"code":"1132010300","name":"서울특별시 도봉구 창동"},{"code":"1132010400","name":"서울특별시 도봉구 도봉동"},{"code":"1135010100","name":"서울특별시 노원구 월계동"},{"code":"1135010200","name":"서울특별시 노원구 공릉동"},{"code":"1135010300","name":"서울특별시 노원구 하계동"},{"code":"1135010400","name":"서울특별시 노원구 중계동"},{"code":"1135010500","name":"서울특별시 노원구 상계동"},{"code":"1138010100","name":"서울특별시 은평구 녹번동"},{"code":"1138010200","name":"서울특별시 은평구 불광동"},{"code":"1138010300","name":"서울특별시 은평구 갈현동"},{"code":"1138010400","name":"서울특별시 은평구 구산동"},{"code":"1138010500","name":"서울특별시 은평구 대조동"},{"code":"1138010600","name":"서울특별시 은평구 응암동"},{"code":"1138010700","name":"서울특별시 은평구 역촌동"},{"code":"1138010800","name":"서울특별시 은평구 신사동"},{"code":"1138010900","name":"서울특별시 은평구 증산동"},{"code":"1138011000","name":"서울특별시 은평구 수색동"},{"code":"1138011100","name":"서울특별시 은평구 진관동"},{"code":"1141010100","name":"서울특별시 서대문구 충정로2가"},{"code":"1141010200","name":"서울특별시 서대문구 충정로3가"},{"code":"1141010300","name":"서울특별시 서대문구 합동"},{"code":"1141010400","name":"서울특별시 서대문구 미근동"},{"code":"1141010500","name":"서울특별시 서대문구 냉천동"},{"code":"1141010600","name":"서울특별시 서대문구 천연동"},{"code":"1141010700","name":"서울특별시 서대문구 옥천동"},{"code":"1141010800","name":"서울특별시 서대문구 영천동"},{"code":"1141010900","name":"서울특별시 서대문구 현저동"},{"code":"1141011000","name":"서울특별시 서대문구 북아현동"},{"code":"1141011100","name":"서울특별시 서대문구 홍제동"},{"code":"1141011200","name":"서울특별시 서대문구 대현동"},{"code":"1141011300","name":"서울특별시 서대문구 대신동"},{"code":"1141011400","name":"서울특별시 서대문구 신촌동"},{"code":"1141011500","name":"서울특별시 서대문구 창천동"},{"code":"1141011600","name":"서울특별시 서대문구 연희동"},{"code":"1141011700","name":"서울특별시 서대문구 홍은동"},{"code":"1141011800","name":"서울특별시 서대문구 북가좌동"},{"code":"1141011900","name":"서울특별시 서대문구 남가좌동"},{"code":"1144010100","name":"서울특별시 마포구 아현동"},{"code":"1144010200","name":"서울특별시 마포구 공덕동"},{"code":"1144010300","name":"서울특별시 마포구 신공덕동"},{"code":"1144010400","name":"서울특별시 마포구 도화동"},{"code":"1144010500","name":"서울특별시 마포구 용강동"},{"code":"1144010600","name":"서울특별시 마포구 토정동"},{"code":"1144010700","name":"서울특별시 마포구 마포동"},{"code":"1144010800","name":"서울특별시 마포구 대흥동"},{"code":"1144010900","name":"서울특별시 마포구 염리동"},{"code":"1144011000","name":"서울특별시 마포구 노고산동"},{"code":"1144011100","name":"서울특별시 마포구 신수동"},{"code":"1144011200","name":"서울특별시 마포구 현석동"},{"code":"1144011300","name":"서울특별시 마포구 구수동"},{"code":"1144011400","name":"서울특별시 마포구 창전동"},{"code":"1144011500","name":"서울특별시 마포구 상수동"},{"code":"1144011600","name":"서울특별시 마포구 하중동"},{"code":"1144011700","name":"서울특별시 마포구 신정동"},{"code":"1144011800","name":"서울특별시 마포구 당인동"},{"code":"1144011900","name":"서울특별시 마포구 서교동"},{"code":"1144012000","name":"서울특별시 마포구 동교동"},{"code":"1144012100","name":"서울특별시 마포구 합정동"},{"code":"1144012200","name":"서울특별시 마포구 망원동"},{"code":"1144012300","name":"서울특별시 마포구 연남동"},{"code":"1144012400","name":"서울특별시 마포구 성산동"},{"code":"1144012500","name":"서울특별시 마포구 중동"},{"code":"1144012600","name":"서울특별시 마포구 상암동"},{"code":"1147010100","name":"서울특별시 양천구 신정동"},{"code":"1147010200","name":"서울특별시 양천구 목동"},{"code":"1147010300","name":"서울특별시 양천구 신월동"},{"code":"1150010100","name":"서울특별시 강서구 염창동"},{"code":"1150010200","name":"서울특별시 강서구 등촌동"},{"code":"1150010300","name":"서울특별시 강서구 화곡동"},{"code":"1150010400","name":"서울특별시 강서구 가양동"},{"code":"1150010500","name":"서울특별시 강서구 마곡동"},{"code":"1150010600","name":"서울특별시 강서구 내발산동"},{"code":"1150010700","name":"서울특별시 강서구 외발산동"},{"code":"1150010800","name":"서울특별시 강서구 공항동"},{"code":"1150010900","name":"서울특별시 강서구 방화동"},{"code":"1153010100","name":"서울특별시 구로구 신도림동"},{"code":"1153010200","name":"서울특별시 구로구 구로동"},{"code":"1153010300","name":"서울특별시 구로구 가리봉동"},{"code":"1153010400","name":"서울특별시 구로구 고척동"},{"code":"1153010500","name":"서울특별시 구로구 개봉동"},{"code":"1153010600","name":"서울특별시 구로구 오류동"},{"code":"1153010700","name":"서울특별시 구로구 궁동"},{"code":"1153010800","name":"서울특별시 구로구 온수동"},{"code":"1153010900","name":"서울특별시 구로구 항동"},{"code":"1153011000","name":"서울특별시 구로구 천왕동"},{"code":"1153011100","name":"서울특별시 구로구 수궁동"},{"code":"1154510100","name":"서울특별시 금천구 가산동"},{"code":"1154510200","name":"서울특별시 금천구 독산동"},{"code":"1154510300","name":"서울특별시 금천구 시흥동"},{"code":"1156010100","name":"서울특별시 영등포구 영등포동"},{"code":"1156010200","name":"서울특별시 영등포구 영등포동1가"},{"code":"1156010300","name":"서울특별시 영등포구 영등포동2가"},{"code":"1156010400","name":"서울특별시 영등포구 영등포동3가"},{"code":"1156010500","name":"서울특별시 영등포구 영등포동4가"},{"code":"1156010600","name":"서울특별시 영등포구 영등포동5가"},{"code":"1156010700","name":"서울특별시 영등포구 영등포동6가"},{"code":"1156010800","name":"서울특별시 영등포구 영등포동7가"},{"code":"1156010900","name":"서울특별시 영등포구 영등포동8가"},{"code":"1156011000","name":"서울특별시 영등포구 당산동1가"},{"code":"1156011100","name":"서울특별시 영등포구 당산동2가"},{"code":"1156011200","name":"서울특별시 영등포구 당산동3가"},{"code":"1156011300","name":"서울특별시 영등포구 당산동4가"},{"code":"1156011400","name":"서울특별시 영등포구 당산동5가"},{"code":"1156011500","name":"서울특별시 영등포구 당산동6가"},{"code":"1156011600","name":"서울특별시 영등포구 도림동"},{"code":"1156011700","name":"서울특별시 영등포구 문래동1가"},{"code":"1156011800","name":"서울특별시 영등포구 문래동2가"},{"code":"1156011900","name":"서울특별시 영등포구 문래동3가"},{"code":"1156012000","name":"서울특별시 영등포구 문래동4가"},{"code":"1156012100","name":"서울특별시 영등포구 문래동5가"},{"code":"1156012200","name":"서울특별시 영등포구 문래동6가"},{"code":"1156012300","name":"서울특별시 영등포구 양평동1가"},{"code":"1156012400","name":"서울특별시 영등포구 양평동2가"},{"code":"1156012500","name":"서울특별시 영등포구 양평동3가"},{"code":"1156012600","name":"서울특별시 영등포구 양평동4가"},{"code":"1156012700","name":"서울특별시 영등포구 양평동5가"},{"code":"1156012800","name":"서울특별시 영등포구 양평동6가"},{"code":"1156012900","name":"서울특별시 영등포구 신길동"},{"code":"1156013000","name":"서울특별시 영등포구 여의도동"},{"code":"1156013100","name":"서울특별시 영등포구 대림동"},{"code":"1159010100","name":"서울특별시 동작구 노량진동"},{"code":"1159010200","name":"서울특별시 동작구 상도동"},{"code":"1159010300","name":"서울특별시 동작구 상도1동"},{"code":"1159010400","name":"서울특별시 동작구 본동"},{"code":"1159010500","name":"서울특별시 동작구 흑석동"},{"code":"1159010600","name":"서울특별시 동작구 동작동"},{"code":"1159010700","name":"서울특별시 동작구 사당동"},{"code":"1159010800","name":"서울특별시 동작구 대방동"},{"code":"1159010900","name":"서울특별시 동작구 신대방동"},{"code":"1162010100","name":"서울특별시 관악구 봉천동"},{"code":"1162010200","name":"서울특별시 관악구 신림동"},{"code":"1162010300","name":"서울특별시 관악구 남현동"},{"code":"1165010100","name":"서울특별시 서초구 방배동"},{"code":"1165010200","name":"서울특별시 서초구 양재동"},{"code":"1165010300","name":"서울특별시 서초구 우면동"},{"code":"1165010400","name":"서울특별시 서초구 원지동"},{"code":"1165010500","name":"서울특별시 서초구 잠원동"},{"code":"1165010600","name":"서울특별시 서초구 반포동"},{"code":"1165010700","name":"서울특별시 서초구 서초동"},{"code":"1165010800","name":"서울특별시 서초구 내곡동"},{"code":"1165010900","name":"서울특별시 서초구 염곡동"},{"code":"1165011000","name":"서울특별시 서초구 신원동"},{"code":"1168010100","name":"서울특별시 강남구 역삼동"},{"code":"1168010200","name":"서울특별시 강남구 개포동"},{"code":"1168010300","name":"서울특별시 강남구 청담동"},{"code":"1168010400","name":"서울특별시 강남구 삼성동"},{"code":"1168010500","name":"서울특별시 강남구 대치동"},{"code":"1168010600","name":"서울특별시 강남구 신사동"},{"code":"1168010700","name":"서울특별시 강남구 논현동"},{"code":"1168010800","name":"서울특별시 강남구 압구정동"},{"code":"1168010900","name":"서울특별시 강남구 세곡동"},{"code":"1168011000","name":"서울특별시 강남구 자곡동"},{"code":"1168011100","name":"서울특별시 강남구 율현동"},{"code":"1168011200","name":"서울특별시 강남구 일원동"},{"code":"1168011300","name":"서울특별시 강남구 수서동"},{"code":"1168011400","name":"서울특별시 강남구 도곡동"},{"code":"1171010100","name":"서울특별시 송파구 풍납동"},{"code":"1171010200","name":"서울특별시 송파구 거여동"},{"code":"1171010300","name":"서울특별시 송파구 마천동"},{"code":"1171010400","name":"서울특별시 송파구 오금동"},{"code":"1171010500","name":"서울특별시 송파구 송파동"},{"code":"1171010600","name":"서울특별시 송파구 석촌동"},{"code":"1171010700","name":"서울특별시 송파구 삼전동"},{"code":"1171010800","name":"서울특별시 송파구 가락동"},{"code":"1171010900","name":"서울특별시 송파구 문정동"},{"code":"1171011000","name":"서울특별시 송파구 장지동"},{"code":"1171011100","name":"서울특별시 송파구 방이동"},{"code":"1171011200","name":"서울특별시 송파구 위례동"},{"code":"1171011300","name":"서울특별시 송파구 잠실동"},{"code":"1171011400","name":"서울특별시 송파구 신천동"},{"code":"1174010100","name":"서울특별시 강동구 명일동"},{"code":"1174010200","name":"서울특별시 강동구 고덕동"},{"code":"1174010300","name":"서울특별시 강동구 상일동"},{"code":"1174010400","name":"서울특별시 강동구 강일동"},{"code":"1174010500","name":"서울특별시 강동구 둔촌동"},{"code":"1174010600","name":"서울특별시 강동구 암사동"},{"code":"1174010700","name":"서울특별시 강동구 성내동"},{"code":"1174010800","name":"서울특별시 강동구 길동"},{"code":"1174010900","name":"서울특별시 강동구 천호동"},{"code":"2611010100","name":"부산광역시 중구 중앙동1가"},{"code":"2614010100","name":"부산광역시 서구 동대신동1가"},{"code":"2617010100","name":"부산광역시 동구 초량동"},{"code":"2620010100","name":"부산광역시 영도구 대교동1가"},{"code":"2623010100","name":"부산광역시 부산진구 부전동"},{"code":"2623010200","name":"부산광역시 부산진구 연지동"},{"code":"2623010300","name":"부산광역시 부산진구 초읍동"},{"code":"2623010400","name":"부산광역시 부산진구 양정동"},{"code":"2623010500","name":"부산광역시 부산진구 전포동"},{"code":"2623010600","name":"부산광역시 부산진구 개금동"},{"code":"2623010700","name":"부산광역시 부산진구 가야동"},{"code":"2623010800","name":"부산광역시 부산진구 당감동"},{"code":"2623010900","name":"부산광역시 부산진구 범천동"},{"code":"2623011000","name":"부산광역시 부산진구 범전동"},{"code":"2626010100","name":"부산광역시 동래구 수민동"},{"code":"2626010200","name":"부산광역시 동래구 복천동"},{"code":"2626010300","name":"부산광역시 동래구 칠산동"},{"code":"2626010400","name":"부산광역시 동래구 안락동"},{"code":"2626010500","name":"부산광역시 동래구 명륜동"},{"code":"2626010600","name":"부산광역시 동래구 온천동"},{"code":"2626010700","name":"부산광역시 동래구 사직동"},{"code":"2626010800","name":"부산광역시 동래구 낙민동"},{"code":"2629010100","name":"부산광역시 남구 대연동"},{"code":"2629010200","name":"부산광역시 남구 용당동"},{"code":"2629010300","name":"부산광역시 남구 용호동"},{"code":"2629010400","name":"부산광역시 남구 감만동"},{"code":"2629010500","name":"부산광역시 남구 우암동"},{"code":"2629010600","name":"부산광역시 남구 문현동"},{"code":"2632010100","name":"부산광역시 북구 구포동"},{"code":"2632010200","name":"부산광역시 북구 덕천동"},{"code":"2632010300","name":"부산광역시 북구 금곡동"},{"code":"2632010400","name":"부산광역시 북구 화명동"},{"code":"2635010100","name":"부산광역시 해운대구 우동"},{"code":"2635010200","name":"부산광역시 해운대구 중동"},{"code":"2635010300","name":"부산광역시 해운대구 좌동"},{"code":"2635010400","name":"부산광역시 해운대구 송정동"},{"code":"2635010500","name":"부산광역시 해운대구 반여동"},{"code":"2635010600","name":"부산광역시 해운대구 반송동"},{"code":"2635010700","name":"부산광역시 해운대구 재송동"},{"code":"2638010100","name":"부산광역시 사하구 괴정동"},{"code":"2638010200","name":"부산광역시 사하구 하단동"},{"code":"2638010300","name":"부산광역시 사하구 당리동"},{"code":"2638010400","name":"부산광역시 사하구 신평동"},{"code":"2638010500","name":"부산광역시 사하구 장림동"},{"code":"2638010600","name":"부산광역시 사하구 다대동"},{"code":"2641010100","name":"부산광역시 금정구 금성동"},{"code":"2641010200","name":"부산광역시 금정구 노포동"},{"code":"2641010300","name":"부산광역시 금정구 남산동"},{"code":"2641010400","name":"부산광역시 금정구 구서동"},{"code":"2641010500","name":"부산광역시 금정구 장전동"},{"code":"2641010600","name":"부산광역시 금정구 부곡동"},{"code":"2641010700","name":"부산광역시 금정구 서동"},{"code":"2644010100","name":"부산광역시 강서구 강동동"},{"code":"2644010200","name":"부산광역시 강서구 명지동"},{"code":"2647010100","name":"부산광역시 연제구 연산동"},{"code":"2647010200","name":"부산광역시 연제구 거제동"},{"code":"2650010100","name":"부산광역시 수영구 수영동"},{"code":"2650010200","name":"부산광역시 수영구 망미동"},{"code":"2650010300","name":"부산광역시 수영구 광안동"},{"code":"2650010400","name":"부산광역시 수영구 민락동"},{"code":"2653010100","name":"부산광역시 사상구 삼락동"},{"code":"2653010200","name":"부산광역시 사상구 모라동"},{"code":"2653010300","name":"부산광역시 사상구 덕포동"},{"code":"2653010400","name":"부산광역시 사상구 괘법동"},{"code":"2653010500","name":"부산광역시 사상구 감전동"},{"code":"2653010600","name":"부산광역시 사상구 주례동"},{"code":"2653010700","name":"부산광역시 사상구 학장동"},{"code":"2653010800","name":"부산광역시 사상구 엄궁동"},{"code":"2711010100","name":"대구광역시 중구 동인동1가"},{"code":"2714010100","name":"대구광역시 동구 신암동"},{"code":"2714010200","name":"대구광역시 동구 신천동"},{"code":"2714010300","name":"대구광역시 동구 효목동"},{"code":"2714010400","name":"대구광역시 동구 도평동"},{"code":"2714010500","name":"대구광역시 동구 불로동"},{"code":"2714010600","name":"대구광역시 동구 봉무동"},{"code":"2714010700","name":"대구광역시 동구 공산동"},{"code":"2714010800","name":"대구광역시 동구 검사동"},{"code":"2714010900","name":"대구광역시 동구 방촌동"},{"code":"2714011000","name":"대구광역시 동구 평광동"},{"code":"2714011100","name":"대구광역시 동구 중대동"},{"code":"2717010100","name":"대구광역시 서구 내당동"},{"code":"2717010200","name":"대구광역시 서구 비산동"},{"code":"2720010100","name":"대구광역시 남구 이천동"},{"code":"2720010200","name":"대구광역시 남구 봉덕동"},{"code":"2720010300","name":"대구광역시 남구 대명동"},{"code":"2723010100","name":"대구광역시 북구 고성동"},{"code":"2723010200","name":"대구광역시 북구 침산동"},{"code":"2723010300","name":"대구광역시 북구 노원동"},{"code":"2723010400","name":"대구광역시 북구 구암동"},{"code":"2723010500","name":"대구광역시 북구 칠성동"},{"code":"2723010600","name":"대구광역시 북구 동천동"},{"code":"2723010700","name":"대구광역시 북구 읍내동"},{"code":"2723010800","name":"대구광역시 북구 관음동"},{"code":"2726010100","name":"대구광역시 수성구 수성동1가"},{"code":"2726010200","name":"대구광역시 수성구 범어동"},{"code":"2726010300","name":"대구광역시 수성구 만촌동"},{"code":"2726010400","name":"대구광역시 수성구 황금동"},{"code":"2729010100","name":"대구광역시 달서구 성당동"},{"code":"2729010200","name":"대구광역시 달서구 두류동"},{"code":"2729010300","name":"대구광역시 달서구 감삼동"},{"code":"2729010400","name":"대구광역시 달서구 죽전동"},{"code":"2729010500","name":"대구광역시 달서구 용산동"},{"code":"2729010600","name":"대구광역시 달서구 이곡동"},{"code":"2729010700","name":"대구광역시 달서구 장기동"},{"code":"2729010800","name":"대구광역시 달서구 송현동"},{"code":"2729010900","name":"대구광역시 달서구 도원동"},{"code":"2729011000","name":"대구광역시 달서구 진천동"},{"code":"2729011100","name":"대구광역시 달서구 상인동"},{"code":"2729011200","name":"대구광역시 달서구 대천동"},{"code":"2729011300","name":"대구광역시 달서구 월성동"},{"code":"2729011400","name":"대구광역시 달서구 갈산동"},{"code":"2729011500","name":"대구광역시 달서구 본리동"},{"code":"2811010100","name":"인천광역시 중구 중앙동1가"},{"code":"2814010100","name":"인천광역시 동구 만석동"},{"code":"2817010100","name":"인천광역시 미추홀구 숭의동"},{"code":"2817010200","name":"인천광역시 미추홀구 용현동"},{"code":"2817010300","name":"인천광역시 미추홀구 학익동"},{"code":"2817010400","name":"인천광역시 미추홀구 도화동"},{"code":"2817010500","name":"인천광역시 미추홀구 주안동"},{"code":"2817010600","name":"인천광역시 미추홀구 관교동"},{"code":"2820010100","name":"인천광역시 연수구 옥련동"},{"code":"2820010200","name":"인천광역시 연수구 선학동"},{"code":"2820010300","name":"인천광역시 연수구 연수동"},{"code":"2820010400","name":"인천광역시 연수구 청학동"},{"code":"2820010500","name":"인천광역시 연수구 동춘동"},{"code":"2820010600","name":"인천광역시 연수구 송도동"},{"code":"2823010100","name":"인천광역시 남동구 구월동"},{"code":"2823010200","name":"인천광역시 남동구 간석동"},{"code":"2823010300","name":"인천광역시 남동구 만수동"},{"code":"2823010400","name":"인천광역시 남동구 장수동"},{"code":"2823010500","name":"인천광역시 남동구 서창동"},{"code":"2823010600","name":"인천광역시 남동구 운연동"},{"code":"2826010100","name":"인천광역시 부평구 부평동"},{"code":"2826010200","name":"인천광역시 부평구 산곡동"},{"code":"2826010300","name":"인천광역시 부평구 청천동"},{"code":"2826010400","name":"인천광역시 부평구 갈산동"},{"code":"2826010500","name":"인천광역시 부평구 삼산동"},{"code":"2826010600","name":"인천광역시 부평구 십정동"},{"code":"2829010100","name":"인천광역시 계양구 효성동"},{"code":"2829010200","name":"인천광역시 계양구 계산동"},{"code":"2829010300","name":"인천광역시 계양구 작전동"},{"code":"2829010400","name":"인천광역시 계양구 서운동"},{"code":"2832010100","name":"인천광역시 서구 가좌동"},{"code":"2832010200","name":"인천광역시 서구 석남동"},{"code":"2832010300","name":"인천광역시 서구 신현동"},{"code":"2832010400","name":"인천광역시 서구 검암동"},{"code":"2832010500","name":"인천광역시 서구 청라동"},{"code":"2832010600","name":"인천광역시 서구 당하동"},{"code":"2832010700","name":"인천광역시 서구 원당동"},{"code":"2832010800","name":"인천광역시 서구 불로동"},{"code":"2832010900","name":"인천광역시 서구 마전동"},{"code":"2832011000","name":"인천광역시 서구 금곡동"},{"code":"2832011100","name":"인천광역시 서구 오류동"},{"code":"2832011200","name":"인천광역시 서구 왕길동"},{"code":"2832011300","name":"인천광역시 서구 대곡동"},{"code":"3011010100","name":"경기도 수원시 장안구 영화동"},{"code":"3011010200","name":"경기도 수원시 장안구 정자동"},{"code":"3011010300","name":"경기도 수원시 장안구 파장동"},{"code":"3011010400","name":"경기도 수원시 장안구 율전동"},{"code":"3011010500","name":"경기도 수원시 장안구 천천동"},{"code":"3011010600","name":"경기도 수원시 장안구 조원동"},{"code":"3011020100","name":"경기도 수원시 권선구 권선동"},{"code":"3011020200","name":"경기도 수원시 권선구 서둔동"},{"code":"3011020300","name":"경기도 수원시 권선구 구운동"},{"code":"3011020400","name":"경기도 수원시 권선구 평동"},{"code":"3011020500","name":"경기도 수원시 권선구 오목천동"},{"code":"3011020600","name":"경기도 수원시 권선구 금곡동"},{"code":"3011020700","name":"경기도 수원시 권선구 호매실동"},{"code":"3011030100","name":"경기도 수원시 팔달구 팔달로1가"},{"code":"3011030200","name":"경기도 수원시 팔달구 팔달로2가"},{"code":"3011030300","name":"경기도 수원시 팔달구 팔달로3가"},{"code":"3011030400","name":"경기도 수원시 팔달구 인계동"},{"code":"3011040100","name":"경기도 수원시 영통구 영통동"},{"code":"3011040200","name":"경기도 수원시 영통구 매탄동"},{"code":"3011040300","name":"경기도 수원시 영통구 원천동"},{"code":"3011040400","name":"경기도 수원시 영통구 망포동"},{"code":"3011040500","name":"경기도 수원시 영통구 하동"},{"code":"3114010100","name":"경기도 성남시 수정구 수진동"},{"code":"3114010200","name":"경기도 성남시 수정구 신흥동"},{"code":"3114010300","name":"경기도 성남시 수정구 태평동"},{"code":"3114010400","name":"경기도 성남시 수정구 복정동"},{"code":"3114010500","name":"경기도 성남시 수정구 창곡동"},{"code":"3114010600","name":"경기도 성남시 수정구 심곡동"},{"code":"3114010700","name":"경기도 성남시 수정구 고등동"},{"code":"3114010800","name":"경기도 성남시 수정구 산성동"},{"code":"3114010900","name":"경기도 성남시 수정구 단대동"},{"code":"3114011000","name":"경기도 성남시 수정구 은행동"},{"code":"3114020100","name":"경기도 성남시 중원구 성남동"},{"code":"3114020200","name":"경기도 성남시 중원구 금광동"},{"code":"3114020300","name":"경기도 성남시 중원구 하대원동"},{"code":"3114020400","name":"경기도 성남시 중원구 상대원동"},{"code":"3114020500","name":"경기도 성남시 중원구 도촌동"},{"code":"3114030100","name":"경기도 성남시 분당구 분당동"},{"code":"3114030200","name":"경기도 성남시 분당구 수내동"},{"code":"3114030300","name":"경기도 성남시 분당구 정자동"},{"code":"3114030400","name":"경기도 성남시 분당구 서현동"},{"code":"3114030500","name":"경기도 성남시 분당구 이매동"},{"code":"3114030600","name":"경기도 성남시 분당구 야탑동"},{"code":"3114030700","name":"경기도 성남시 분당구 판교동"},{"code":"3114030800","name":"경기도 성남시 분당구 백현동"},{"code":"3114030900","name":"경기도 성남시 분당구 삼평동"},{"code":"3119510100","name":"경기도 고양시 덕양구 주교동"},{"code":"3119510200","name":"경기도 고양시 덕양구 행신동"},{"code":"3119510300","name":"경기도 고양시 덕양구 화정동"},{"code":"3119510400","name":"경기도 고양시 덕양구 능곡동"},{"code":"3119510500","name":"경기도 고양시 덕양구 원당동"},{"code":"3119510600","name":"경기도 고양시 덕양구 창릉동"},{"code":"3119520100","name":"경기도 고양시 일산동구 식사동"},{"code":"3119520200","name":"경기도 고양시 일산동구 중산동"},{"code":"3119520300","name":"경기도 고양시 일산동구 마두동"},{"code":"3119520400","name":"경기도 고양시 일산동구 백석동"},{"code":"3119520500","name":"경기도 고양시 일산동구 장항동"},{"code":"3119530100","name":"경기도 고양시 일산서구 주엽동"},{"code":"3119530200","name":"경기도 고양시 일산서구 일산동"},{"code":"3119530300","name":"경기도 고양시 일산서구 탄현동"},{"code":"3119530400","name":"경기도 고양시 일산서구 덕이동"},{"code":"3119530500","name":"경기도 고양시 일산서구 가좌동"},{"code":"3119530600","name":"경기도 고양시 일산서구 구산동"},{"code":"3147010100","name":"경기도 용인시 처인구 김량장동"},{"code":"3147010200","name":"경기도 용인시 처인구 역삼동"},{"code":"3147020100","name":"경기도 용인시 기흥구 언남동"},{"code":"3147020200","name":"경기도 용인시 기흥구 신갈동"},{"code":"3147020300","name":"경기도 용인시 기흥구 구갈동"},{"code":"3147020400","name":"경기도 용인시 기흥구 상갈동"},{"code":"3147020500","name":"경기도 용인시 기흥구 기흥동"},{"code":"3147030100","name":"경기도 용인시 수지구 풍덕천동"},{"code":"3147030200","name":"경기도 용인시 수지구 신봉동"},{"code":"3147030300","name":"경기도 용인시 수지구 동천동"},{"code":"3147030400","name":"경기도 용인시 수지구 고기동"},{"code":"3147030500","name":"경기도 용인시 수지구 상현동"},{"code":"3215010100","name":"경기도 화성시 동탄동"},{"code":"3215010200","name":"경기도 화성시 반정동"},{"code":"3215010300","name":"경기도 화성시 능동"},{"code":"3215010400","name":"경기도 화성시 청계동"},{"code":"3215010500","name":"경기도 화성시 목동"},{"code":"3215010600","name":"경기도 화성시 영천동"},{"code":"4113510100","name":"경기도 김포시 사우동"},{"code":"4113510200","name":"경기도 김포시 풍무동"},{"code":"4113510300","name":"경기도 김포시 장기동"},{"code":"4113510400","name":"경기도 김포시 걸포동"},{"code":"4113510500","name":"경기도 김포시 운양동"},{"code":"4113510600","name":"경기도 김포시 마산동"},{"code":"4113510700","name":"경기도 김포시 북변동"},{"code":"4113510800","name":"경기도 김포시 감정동"},{"code":"4113510900","name":"경기도 김포시 고촌읍"},{"code":"4113511000","name":"경기도 김포시 한강신도시"},{"code":"4115010100","name":"경기도 파주시 금촌동"},{"code":"4115010200","name":"경기도 파주시 아동동"},{"code":"4115010300","name":"경기도 파주시 야동동"},{"code":"4115010400","name":"경기도 파주시 운정동"},{"code":"4115010500","name":"경기도 파주시 교하동"},{"code":"4115010600","name":"경기도 파주시 당하동"},{"code":"4115010700","name":"경기도 파주시 목동동"},{"code":"4115010800","name":"경기도 파주시 와동동"},{"code":"4115010900","name":"경기도 파주시 문발동"}];
+
+// ─────────────────────────────────────────────
+//  CONFIG  ← 배포 시 BUNDLED_KEY에 Encoding 키를 넣으세요
+// ─────────────────────────────────────────────
+const CONFIG = {
+  BUNDLED_KEY: "tO2e5KizDmrdQUdjSlPnaiQuBO%2B%2BW0jDe%2F25ce%2B340qo9Fxnb5FXyfCklidNYzUW2PmPGHOSdJwIYIgc9unZDQ%3D%3D",
+  API_KEY: "",
+  API_ENDPOINT: "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
+  JEONSE_ENDPOINT: "https://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
+  DEFAULT_A: {
+    dongName: "서울특별시 성북구 돈암동",
+    lawdCd: "11290",
+    aptName: "돈암삼성",
+    area: 109,
+  },
+  DEFAULT_B: {
+    dongName: "서울특별시 성북구 길음동",
+    lawdCd: "11290",
+    aptName: "길음뉴타운래미안6단지",
+    area: 104,
+  },
+};
+
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+let jibunData = [];
+let jibunReady = null;
+let state = {
+  A: { lawdCd: null, aptName: null, area: null, trades: [], jeonse: [], buildYear: null },
+  B: { lawdCd: null, aptName: null, area: null, trades: [], jeonse: [], buildYear: null },
+};
+let chart = null;
+
+// ─────────────────────────────────────────────
+//  API KEY MANAGEMENT
+// ─────────────────────────────────────────────
+function applyApiKey() {
+  const raw = document.getElementById('apiKeyInput').value.trim();
+  if (!raw) return;
+  CONFIG.API_KEY = raw;
+  localStorage.setItem('aptApiKey', raw);
+  hideKeyBar();
+  // Re-trigger searches if dong already filled
+  if (document.getElementById('dongA').value) searchByDong('A');
+  if (document.getElementById('dongB').value) searchByDong('B');
+}
+
+function setApiKeyStatus(type, msg) {
+  const el = document.getElementById('apiKeyStatus');
+  el.textContent = msg;
+  el.className = 'api-key-status ' + type;
+}
+
+function loadSavedApiKey() {
+  // 우선순위: BUNDLED_KEY → localStorage → 없음(폼 표시)
+  if (CONFIG.BUNDLED_KEY) {
+    CONFIG.API_KEY = CONFIG.BUNDLED_KEY;
+    // apiKeyBar는 HTML에서 이미 display:none — 그대로 유지
+    return;
+  }
+  const saved = localStorage.getItem('aptApiKey');
+  if (saved) {
+    CONFIG.API_KEY = saved;
+    document.getElementById('apiKeyInput').value = saved;
+    // 저장된 키 있으면 숨김 유지
+  } else {
+    // 키가 없을 때만 폼 표시
+    showKeyBar();
+  }
+}
+
+function hideKeyBar() {
+  document.getElementById('apiKeyBar').style.display = 'none';
+}
+
+function showKeyBar(msg) {
+  const bar = document.getElementById('apiKeyBar');
+  bar.style.display = 'flex';
+  if (msg) {
+    document.getElementById('apiKeyStatus').textContent = msg;
+    document.getElementById('apiKeyStatus').className = 'api-key-status fail';
+  }
+}
+
+function toggleKeyBar() {
+  const bar = document.getElementById('apiKeyBar');
+  if (bar.style.display === 'none' || bar.style.display === '') {
+    showKeyBar();
+    bar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    hideKeyBar();
+  }
+}
+
+// ─────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────
+async function init() {
+  // jibun 데이터는 인라인으로 삽입됨 — fetch 불필요
+  jibunData = JIBUN_DATA;
+  jibunReady = Promise.resolve();
+
+  loadSavedApiKey();
+
+  document.getElementById('apiKeyInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') applyApiKey();
+  });
+
+  // (기본값 없음 — 사용자가 직접 입력)
+
+  if (CONFIG.API_KEY) {
+    searchByDong('A');
+    searchByDong('B');
+  } else {
+    showResults('A', 'warn', '상단에서 국토교통부 API 키를 입력하고 적용하면 자동으로 검색됩니다.');
+    showResults('B', 'warn', '상단에서 국토교통부 API 키를 입력하고 적용하면 자동으로 검색됩니다.');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  JIBUN FUZZY SEARCH
+// ─────────────────────────────────────────────
+// iOS IME는 NFD(자모 분해) 유니코드를 입력할 수 있어 NFC 정규화 필요
+const nfc = s => s.normalize('NFC');
+
+function fuzzySearch(query) {
+  if (!query.trim()) return null;
+  const q = nfc(query.trim().replace(/\s+/g, ' '));
+  const tokens = q.split(' ');
+  let best = null, bestScore = -1;
+  for (const item of jibunData) {
+    const name = nfc(item.name);
+    let score = 0;
+    for (const t of tokens) {
+      if (name.includes(t)) score += t.length * 2;
+    }
+    if (score > bestScore) { bestScore = score; best = item; }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+// fuzzySearch multiple results (top N)
+function fuzzySearchAll(query, limit = 20) {
+  if (!query.trim()) return [];
+  const q = nfc(query.trim().replace(/\s+/g, ' '));
+  const tokens = q.split(' ');
+  return jibunData
+    .map(item => {
+      const name = nfc(item.name);
+      let score = 0;
+      for (const t of tokens) if (name.includes(t)) score += t.length * 2;
+      return { item, score };
+    })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(x => x.item);
+}
+
+// ─────────────────────────────────────────────
+//  지역(구/동) 검색 → 아파트 목록
+// ─────────────────────────────────────────────
+async function searchByDong(side) {
+  if (!CONFIG.API_KEY) {
+    const input = document.getElementById('apiKeyInput');
+    input.classList.remove('needs-key', 'shake');
+    void input.offsetWidth;
+    input.classList.add('needs-key', 'shake');
+    input.focus();
+    setApiKeyStatus('warn', '⚠ API 키를 먼저 입력하세요');
+    showResults(side, 'error', '⬆ 상단 API 키 입력창에 키를 붙여넣고 <b>적용</b>을 눌러주세요.');
+    return;
+  }
+
+  if (jibunReady) await jibunReady;
+
+  const dongVal = document.getElementById('dong' + side).value.trim();
+  const aptQuery = document.getElementById('aptFilter' + side).value.trim();
+
+  if (!dongVal) {
+    showResults(side, 'error', '지역(구/동)을 입력해주세요.');
+    return;
+  }
+
+  const found = fuzzySearch(dongVal);
+  if (!found) {
+    showResults(side, 'error', `"${dongVal}"에 해당하는 법정동을 찾지 못했습니다. (예: 성북구 돈암동, 강남구 대치동)`);
+    return;
+  }
+
+  const lawdCd = found.code.substring(0, 5);
+  state[side].lawdCd = lawdCd;
+
+  clearResults(side);
+  // 새 검색 시 이전 면적·단지 선택 초기화
+  document.getElementById('areaRow' + side).style.display = 'none';
+  document.getElementById('area' + side).innerHTML = '<option value="">— 면적 선택 —</option>';
+  document.getElementById('btn' + side).disabled = true;
+  state[side].aptName = null;
+  state[side].area = null;
+  state[side].buildYear = null;
+  setLoading(side, true);
+
+  try {
+    const months = getLastNMonths(24);
+    const settled = await Promise.allSettled(months.map(ym => fetchTrades(lawdCd, ym)));
+
+    // Check auth error
+    if (settled.every(r => r.status === 'rejected')) {
+      const msg = settled[0].reason?.message || '';
+      if (msg === 'NO_KEY') {
+        setApiKeyStatus('warn', '⚠ API 키 없음');
+        showResults(side, 'warn', '상단에서 국토교통부 API 키를 입력하고 적용하세요.');
+        return;
+      }
+      if (msg.startsWith('AUTH_')) {
+        // 번들 키가 있었어도 실패 시 키 바 노출
+        showKeyBar('✕ 인증 실패 (401) — 새 키를 입력하세요');
+        setApiKeyStatus('fail', '✕ 인증 실패 (401)');
+        showResults(side, 'error',
+          '🔑 API 키 인증 실패 (401). 아래를 확인해 주세요:<br><br>'
+          + '① <b>Encoding 키</b>(% 포함된 긴 문자열)를 그대로 붙여넣기하세요 — Decoding 키가 아닌지 확인<br>'
+          + '② 포털에서 직접 테스트: data.go.kr → 마이페이지 → 활용신청 현황 → <b>"확인"</b> 클릭<br>'
+          + '③ 승인 직후엔 반영에 최대 1~2시간 소요될 수 있습니다. 잠시 후 다시 시도하세요<br>'
+          + '④ API 상세 페이지에서 <b>IP 허용 설정</b> 확인 (비어있으면 현재 IP 추가)<br><br>'
+          + '<span style="color:var(--text3);font-size:10px">API 없이 UI 테스트:</span> '
+          + `<button onclick="loadMockData('${side}')" class="btn-retry" style="display:inline-block">샘플 데이터 보기</button>`);
+        return;
+      }
+      // 네트워크 오류 (CORS, 타임아웃, 연결 불가 등)
+      const isNetworkErr = settled[0].reason instanceof TypeError || msg.includes('abort') || msg.includes('network');
+      if (isNetworkErr) {
+        showResults(side, 'error',
+          '🌐 API 서버에 연결할 수 없습니다.<br><br>'
+          + '파일을 직접 열면 일부 브라우저에서 외부 API 요청이 차단될 수 있습니다.<br>'
+          + '아래 방법으로 시도해보세요:<br><br>'
+          + '① <b>Safari 설정 → 개인 정보 보호 → 교차 사이트 추적 방지</b> 끄기<br>'
+          + '② 파일을 <b>카카오톡 등 앱</b>에서 직접 열지 말고 Safari로 저장 후 열기<br>'
+          + '③ Wi-Fi 연결 상태 확인');
+        setLoading(side, false);
+        return;
+      }
+    }
+
+    const allTrades = settled.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
+    state[side]._allTrades = allTrades;
+    state[side]._lawdName = found.name;
+
+    // Filter by apt query if provided
+    const norm = s => s.replace(/\s/g, '').toLowerCase();
+    const matching = aptQuery
+      ? [...new Set(allTrades.map(t => t.aptNm).filter(n => n && norm(n).includes(norm(aptQuery))))]
+      : [...new Set(allTrades.map(t => t.aptNm).filter(Boolean))];
+
+    matching.sort();
+
+    if (!matching.length) {
+      const total = [...new Set(allTrades.map(t => t.aptNm).filter(Boolean))].length;
+      showResults(side, 'warn',
+        `"${aptQuery}"와 일치하는 단지가 없습니다. (${found.name} 전체 ${total}개 단지 중)`);
+      // Show all apts as fallback
+      showAptList(side, [...new Set(allTrades.map(t => t.aptNm).filter(Boolean))].sort(), allTrades);
+      return;
+    }
+
+    setApiKeyStatus('ok', `✓ 정상`);
+    showAptList(side, matching, allTrades);
+  } catch (e) {
+    showResults(side, 'error', '데이터 로드 실패. 다시 시도하세요.');
+    console.error(e);
+  } finally {
+    setLoading(side, false);
+  }
+}
+
+function showAptList(side, aptNames, allTrades) {
+  const resultsEl = document.getElementById('aptResults' + side);
+  resultsEl.innerHTML = '';
+
+  if (!aptNames.length) {
+    showResults(side, 'warn', '조회된 단지가 없습니다.');
+    return;
+  }
+
+  // 드롭다운 래퍼
+  const wrap = document.createElement('div');
+  wrap.className = 'apt-select-wrap';
+
+  const label = document.createElement('div');
+  label.className = 'apt-select-label';
+  label.textContent = `${aptNames.length}개 단지 — 선택하세요`;
+  wrap.appendChild(label);
+
+  const sel = document.createElement('select');
+  sel.className = 'apt-select-el';
+  sel.id = 'aptSelectEl' + side;
+
+  // 기본 옵션
+  if (aptNames.length > 1) {
+    const defOpt = document.createElement('option');
+    defOpt.value = '';
+    defOpt.textContent = '— 단지를 선택하세요 —';
+    sel.appendChild(defOpt);
+  }
+
+  aptNames.forEach(name => {
+    const trades = allTrades.filter(t => t.aptNm === name);
+    const latest = [...trades].sort((a,b) => {
+      const da = `${a.dealYear}${a.dealMonth.padStart(2,'0')}${a.dealDay.padStart(2,'0')}`;
+      const db = `${b.dealYear}${b.dealMonth.padStart(2,'0')}${b.dealDay.padStart(2,'0')}`;
+      return db.localeCompare(da);
+    })[0];
+    const price = latest ? parseInt(latest.dealAmount.replace(/,/g,'')) : null;
+    const fmt = price ? formatEok(price) : null;
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = fmt ? `${name}  ·  최근 ${fmt.value}${fmt.unit}  (${trades.length}건)` : `${name}  (${trades.length}건)`;
+    sel.appendChild(opt);
+  });
+
+  sel.addEventListener('change', () => {
+    if (sel.value) {
+      state[side]._selectedApt = sel.value; // 선택값 즉시 저장
+      selectAptAndPopulateAreas(side, sel.value);
+    }
+  });
+
+  wrap.appendChild(sel);
+  resultsEl.appendChild(wrap);
+
+  // 이전에 선택했던 단지가 목록에 있으면 복원
+  const prevApt = state[side]._selectedApt;
+  if (prevApt && aptNames.includes(prevApt)) {
+    sel.value = prevApt;
+    selectAptAndPopulateAreas(side, prevApt);
+  } else if (aptNames.length === 1) {
+    // 단지 1개면 자동 선택
+    sel.value = aptNames[0];
+    state[side]._selectedApt = aptNames[0];
+    selectAptAndPopulateAreas(side, aptNames[0]);
+  }
+}
+
+
+function selectAptAndPopulateAreas(side, aptName) {
+  const allTrades = state[side]._allTrades || [];
+  const trades = allTrades.filter(t => t.aptNm === aptName);
+  const areas = [...new Set(trades.map(t => Math.round(parseFloat(t.excluUseAr))))].sort((a,b)=>a-b);
+
+  state[side].aptName = aptName;
+
+  // 준공연도 추출 (가장 많이 등장하는 값)
+  const byears = trades.map(t => t.buildYear).filter(y => y && y.trim() !== '' && y !== '0');
+  if (byears.length) {
+    const counts = {};
+    byears.forEach(y => { counts[y] = (counts[y] || 0) + 1; });
+    const buildYear = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+    state[side].buildYear = buildYear;
+    // select label에 준공연도 표시
+    const label = document.querySelector('#aptSelectEl' + side)?.closest('.apt-select-wrap')?.querySelector('.apt-select-label');
+    const age = new Date().getFullYear() - parseInt(buildYear);
+    if (label) label.textContent = `${aptName} · 준공 ${buildYear}년 (${age}년 경과)`;
+  } else {
+    state[side].buildYear = null;
+    const label = document.querySelector('#aptSelectEl' + side)?.closest('.apt-select-wrap')?.querySelector('.apt-select-label');
+    if (label) label.textContent = `${aptName} 선택됨`;
+  }
+
+  const areaSel = document.getElementById('area' + side);
+  const prevArea = state[side]._selectedArea; // 이전 선택 면적 기억
+  areaSel.innerHTML = '<option value="">— 면적 선택 —</option>';
+  areas.forEach(ar => {
+    const opt = document.createElement('option');
+    opt.value = ar;
+    opt.textContent = ar + ' ㎡';
+    areaSel.appendChild(opt);
+  });
+  document.getElementById('areaRow' + side).style.display = 'block';
+
+  // 면적 선택 시 즉시 state에 저장
+  areaSel.onchange = () => {
+    state[side]._selectedArea = areaSel.value ? parseInt(areaSel.value) : null;
+    onAreaChange(side);
+  };
+
+  // 이전 면적 복원 or 1개면 자동 선택
+  if (prevArea && areas.includes(prevArea)) {
+    areaSel.value = prevArea;
+    onAreaChange(side);
+  } else if (areas.length === 1) {
+    areaSel.value = areas[0];
+    state[side]._selectedArea = areas[0];
+    onAreaChange(side);
+  }
+}
+
+function onAreaChange(side) {
+  const areaVal = document.getElementById('area' + side).value;
+  document.getElementById('btn' + side).disabled = !areaVal;
+  // HTML onchange 속성은 제거하고 JS에서만 처리 (selectAptAndPopulateAreas에서 set)
+}
+
+// ─────────────────────────────────────────────
+//  UI HELPERS
+// ─────────────────────────────────────────────
+function setLoading(side, on) {
+  document.getElementById('loading' + side).style.display = on ? 'block' : 'none';
+}
+
+function clearResults(side) {
+  document.getElementById('aptResults' + side).innerHTML = '';
+}
+
+function showResults(side, type, html) {
+  const el = document.getElementById('aptResults' + side);
+  const cls = type === 'error' ? 'error' : type === 'warn' ? 'warn' : '';
+  el.innerHTML = `<div class="apt-result-msg ${cls}" style="line-height:1.7">${html}</div>`;
+}
+
+// ─────────────────────────────────────────────
+//  MAIN LOAD DATA (called by button)
+// ─────────────────────────────────────────────
+async function loadData(side) {
+  const aptName = state[side].aptName;
+  const areaVal = document.getElementById('area' + side).value;
+  const btn = document.getElementById('btn' + side);
+
+  if (!aptName || !areaVal) {
+    showResults(side, 'warn', '아파트와 면적을 먼저 선택해주세요.');
+    return;
+  }
+
+  const area = parseInt(areaVal);
+  state[side].area = area;
+
+  btn.disabled = true;
+  btn.textContent = '불러오는 중…';
+
+  // Filter trades by aptNm + area (±3㎡)
+  const allTrades = state[side]._allTrades || [];
+  const trades = allTrades.filter(t =>
+    t.aptNm === aptName &&
+    Math.abs(Math.round(parseFloat(t.excluUseAr)) - area) <= 3
+  );
+  state[side].trades = trades;
+
+  // 전세 데이터 병렬 로드
+  const lawdCd = state[side].lawdCd;
+  const months = getLastNMonths(24);
+  const jeonseRaw = await Promise.all(months.map(ym => fetchJeonse(lawdCd, ym)));
+
+  // 오류 유형 감지
+  const jeonseError = jeonseRaw.find(r => r.error)?.error || null;
+  const allJeonse = jeonseRaw.flatMap(r => r.data);
+  const jeonse = allJeonse.filter(t =>
+    t.aptNm === aptName &&
+    Math.abs(Math.round(parseFloat(t.excluUseAr)) - area) <= 5
+  );
+  state[side].jeonse = jeonse;
+
+  updateSummaryCard(side, trades);
+  updateAvgCard(side, trades);
+  updateJeonseCard(side, trades, jeonse, jeonseError);
+  updateAnalysisCards(side, trades);
+
+  renderChart();
+  renderTable();
+  generateSummary();
+
+  ['chartPanel', 'tablePanel'].forEach(id => document.getElementById(id).classList.add('visible'));
+  document.getElementById('chartEmpty').style.display = 'none';
+
+  btn.disabled = false;
+  btn.textContent = '실거래가 불러오기';
+}
+
+// ─────────────────────────────────────────────
+//  MOCK DATA (API 불가 시 UI 확인용)
+// ─────────────────────────────────────────────
+function makeMockJeonse(aptNm, area, baseDeposit) {
+  const now = new Date();
+  const trades = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const count = Math.floor(Math.random() * 2) + 1;
+    for (let j = 0; j < count; j++) {
+      const variation = (Math.random() - 0.45) * 1000;
+      const deposit = Math.round((baseDeposit + variation) / 100) * 100;
+      trades.push({
+        aptNm,
+        excluUseAr: String(area + (Math.random() * 0.5).toFixed(2)),
+        dealYear: String(d.getFullYear()),
+        dealMonth: String(d.getMonth() + 1),
+        dealDay: String(Math.floor(Math.random() * 20) + 1),
+        deposit: deposit.toLocaleString(),
+      });
+    }
+  }
+  return trades;
+}
+
+function makeMockTrades(aptNm, basePrice, area) {
+  const now = new Date();
+  const trades = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const count = Math.floor(Math.random() * 3) + 1;
+    for (let j = 0; j < count; j++) {
+      const variation = (Math.random() - 0.45) * 2000;
+      const price = Math.round((basePrice + variation) / 100) * 100;
+      trades.push({
+        aptNm,
+        dealAmount: price.toLocaleString(),
+        excluUseAr: String(area + (Math.random() * 0.5).toFixed(2)),
+        dealYear: String(d.getFullYear()),
+        dealMonth: String(d.getMonth() + 1),
+        dealDay: String(Math.floor(Math.random() * 20) + 1),
+        floor: String(Math.floor(Math.random() * 20) + 1),
+      });
+    }
+  }
+  return trades;
+}
+
+function loadMockData(side) {
+  const defaults = { A: { aptNm: '돈암삼성', price: 73000, area: 109 }, B: { aptNm: '길음뉴타운래미안6단지', price: 85000, area: 104 } };
+  const d = defaults[side];
+  const trades = makeMockTrades(d.aptNm, d.price, d.area);
+
+  const jeonse = makeMockJeonse(d.aptNm, d.area, Math.round(d.price * 0.62));
+  state[side]._allTrades = trades;
+  state[side].aptName = d.aptNm;
+  state[side].area = d.area;
+  state[side].trades = trades;
+  state[side].jeonse = jeonse;
+
+  // Show apt in results
+  showAptList(side, [d.aptNm], trades);
+
+  // Populate area and select it
+  const areaSel = document.getElementById('area' + side);
+  areaSel.innerHTML = `<option value="${d.area}">${d.area} ㎡ (샘플)</option>`;
+  document.getElementById('areaRow' + side).style.display = 'block';
+  document.getElementById('btn' + side).disabled = false;
+
+  const mockJeonse = state[side].jeonse;
+  updateSummaryCard(side, trades);
+  updateAvgCard(side, trades);
+  updateJeonseCard(side, trades, mockJeonse);
+  updateAnalysisCards(side, trades);
+  renderChart();
+  renderTable();
+  generateSummary();
+  ['chartPanel', 'tablePanel'].forEach(id => document.getElementById(id).classList.add('visible'));
+  document.getElementById('chartEmpty').style.display = 'none';
+}
+
+// ─────────────────────────────────────────────
+//  FETCH TRADES (국토교통부 API)
+// ─────────────────────────────────────────────
+async function fetchTrades(lawdCd, dealYmd) {
+  if (!CONFIG.API_KEY) throw new Error('NO_KEY');
+
+  // 공공데이터포털은 serviceKey를 URL에 직접 이어붙여야 이중인코딩을 피할 수 있음.
+  // 사용자가 Encoding 키(%2B 등 포함)를 붙여넣으면 그대로 사용.
+  // Decoding 키(+, / 포함)를 넣으면 encodeURIComponent 후 사용.
+  const rawKey = CONFIG.API_KEY.trim();
+  const serviceKey = rawKey.includes('%') ? rawKey : encodeURIComponent(rawKey);
+  const url = `${CONFIG.API_ENDPOINT}?serviceKey=${serviceKey}&LAWD_CD=${lawdCd}&DEAL_YMD=${dealYmd}&numOfRows=100&pageNo=1`;
+
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(tid);
+    if (res.status === 401 || res.status === 403) throw new Error('AUTH_' + res.status);
+    const text = await res.text();
+    if (text.includes('<errMsg>') && !text.includes('<item>')) {
+      const match = text.match(/<errMsg>(.*?)<\/errMsg>/);
+      throw new Error('API_ERR:' + (match ? match[1] : 'unknown'));
+    }
+    return parseTradeXML(text);
+  } catch (e) {
+    clearTimeout(tid);
+    throw e;
+  }
+}
+
+function parseTradeXML(xmlText) {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, 'text/xml');
+    const items = doc.querySelectorAll('item');
+    const results = [];
+    items.forEach(item => {
+      const get = tag => {
+        const el = item.querySelector(tag);
+        return el ? el.textContent.trim() : '';
+      };
+      results.push({
+        aptNm: get('aptNm'),
+        dealAmount: get('dealAmount'),
+        excluUseAr: get('excluUseAr'),
+        dealYear: get('dealYear'),
+        dealMonth: get('dealMonth'),
+        dealDay: get('dealDay'),
+        floor: get('floor'),
+        buildYear: get('buildYear'),
+      });
+    });
+    return results;
+  } catch (e) {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────
+//  FETCH JEONSE (국토교통부 전월세 실거래 API)
+// ─────────────────────────────────────────────
+async function fetchJeonse(lawdCd, dealYmd) {
+  if (!CONFIG.API_KEY) return { data: [], error: null };
+  const rawKey = CONFIG.API_KEY.trim();
+  const serviceKey = rawKey.includes('%') ? rawKey : encodeURIComponent(rawKey);
+  const url = `${CONFIG.JEONSE_ENDPOINT}?serviceKey=${serviceKey}&LAWD_CD=${lawdCd}&DEAL_YMD=${dealYmd}&numOfRows=100&pageNo=1`;
+
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(tid);
+    if (res.status === 401 || res.status === 403) return { data: [], error: 'AUTH' };
+    const text = await res.text();
+    // 실제 접근거부/미등록 에러만 NOT_SUBSCRIBED로 분류
+    // "NORMAL SERVICE." 같은 정상 응답(데이터 없음)은 오류로 보지 않음
+    if (text.includes('SERVICE_ACCESS_DENIED_ERROR') ||
+        text.includes('SERVICE_KEY_IS_NOT_REGISTERED_ERROR') ||
+        text.includes('DEVELOPER_OVER_QPS')) {
+      return { data: [], error: 'NOT_SUBSCRIBED' };
+    }
+    return { data: parseJeonseXML(text), error: null };
+  } catch (e) {
+    clearTimeout(tid);
+    return { data: [], error: null }; // 네트워크 오류는 조용히 무시
+  }
+}
+
+function parseJeonseXML(xmlText) {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, 'text/xml');
+    const items = doc.querySelectorAll('item');
+    const results = [];
+    items.forEach(item => {
+      const get = tag => { const el = item.querySelector(tag); return el ? el.textContent.trim() : ''; };
+      const monthlyRent = get('monthlyRent');
+      // 순수 전세만 (월세 = 0)
+      if (monthlyRent !== '' && monthlyRent !== '0') return;
+      results.push({
+        aptNm: get('aptNm'),
+        excluUseAr: get('excluUseAr'),
+        dealYear: get('dealYear'),
+        dealMonth: get('dealMonth'),
+        dealDay: get('dealDay'),
+        deposit: get('deposit'),
+      });
+    });
+    return results;
+  } catch (e) {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────
+//  12개월 평균가 카드
+// ─────────────────────────────────────────────
+function updateAvgCard(side, trades) {
+  const card = document.getElementById('cardHoga' + side);
+  const contentEl = document.getElementById('hoga' + side + 'Content');
+  card.classList.add('visible');
+
+  if (!trades.length) {
+    contentEl.innerHTML = `<div class="card-value" style="color:var(--text3)">—</div><div class="card-sub">거래 없음</div>`;
+    return;
+  }
+
+  const prices = trades.map(t => parseInt(t.dealAmount.replace(/,/g, ''))).filter(p => p > 0);
+  const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+  const fmt = formatEok(avg);
+
+  contentEl.innerHTML = `
+    <div class="card-value">${fmt.value}<span class="unit">${fmt.unit}</span></div>
+    <div class="card-sub">매매 ${trades.length}건 평균 · 12개월</div>`;
+}
+
+// ─────────────────────────────────────────────
+//  전세가율 카드
+// ─────────────────────────────────────────────
+function updateJeonseCard(side, trades, jeonse, error) {
+  const card = document.getElementById('cardJeonse' + side);
+  const contentEl = document.getElementById('jeonse' + side + 'Content');
+  card.classList.add('visible');
+
+  if (error === 'NOT_SUBSCRIBED' || error === 'AUTH') {
+    contentEl.innerHTML = `
+      <div class="card-value" style="color:var(--amber);font-size:16px">미승인</div>
+      <div class="card-sub" style="color:var(--amber);line-height:1.6">전월세 API 별도 신청 필요<br>
+        <a href="https://www.data.go.kr/data/15058017/openapi.do" target="_blank"
+           style="color:var(--a);text-decoration:none;font-size:10px">→ data.go.kr 신청하기</a>
+      </div>`;
+    return;
+  }
+
+  if (!jeonse.length || !trades.length) {
+    contentEl.innerHTML = `<div class="card-value" style="color:var(--text3)">—</div><div class="card-sub">전세 거래 없음</div>`;
+    return;
+  }
+
+  const tradePrices = trades.map(t => parseInt(t.dealAmount.replace(/,/g, ''))).filter(p => p > 0);
+  const avgTrade = Math.round(tradePrices.reduce((a, b) => a + b, 0) / tradePrices.length);
+
+  const jeonsePrices = jeonse.map(t => parseInt(t.deposit.replace(/,/g, ''))).filter(p => p > 0);
+  const avgJeonse = Math.round(jeonsePrices.reduce((a, b) => a + b, 0) / jeonsePrices.length);
+
+  const ratio = Math.round((avgJeonse / avgTrade) * 100);
+  const jFmt = formatEok(avgJeonse);
+  const sideL = side.toLowerCase();
+
+  contentEl.innerHTML = `
+    <div class="card-value">${ratio}<span class="unit">%</span></div>
+    <div class="card-sub">전세 평균 ${jFmt.value}${jFmt.unit} · ${jeonse.length}건</div>
+    <div class="rate-bar"><div class="rate-fill-${sideL}" style="width:${Math.min(ratio, 100)}%"></div></div>`;
+}
+
+// ─────────────────────────────────────────────
+//  분석 카드 (추세 + 위치)
+// ─────────────────────────────────────────────
+function calcAnalysis(trades) {
+  const months = getLastNMonths(24);
+  const monthly = buildMonthlyData(trades, months);
+
+  // 추세: 데이터가 있는 월만 추출 → 절반으로 나눠 비교 (고정 3개월 아님)
+  const validPoints = monthly.map((v, i) => v !== null ? { v, m: months[i] } : null).filter(Boolean);
+  let trend = null;
+  if (validPoints.length >= 2) {
+    const mid = Math.ceil(validPoints.length / 2);
+    const prevPts   = validPoints.slice(0, mid);
+    const recentPts = validPoints.slice(mid);
+    if (prevPts.length && recentPts.length) {
+      const pAvg = prevPts.reduce((a,b)=>a+b.v,0) / prevPts.length;
+      const rAvg = recentPts.reduce((a,b)=>a+b.v,0) / recentPts.length;
+      const pct  = ((rAvg - pAvg) / pAvg * 100);
+      const dir  = pct > 0.5 ? 'up' : pct < -0.5 ? 'down' : 'flat';
+      // 비교 기간 레이블 (예: "24.01~24.06 vs 24.07~25.05")
+      const fmt = m => `${m.slice(2,4)}.${m.slice(4,6)}`;
+      const periodLabel = `${fmt(prevPts[0].m)}~${fmt(prevPts[prevPts.length-1].m)} vs ${fmt(recentPts[0].m)}~${fmt(recentPts[recentPts.length-1].m)}`;
+      trend = { pct: parseFloat(pct.toFixed(1)), dir, rAvg, pAvg, periodLabel, n: validPoints.length };
+    }
+  }
+
+  // 가격 위치: 24개월 최저/최고 대비 현재
+  const valid = monthly.filter(v => v !== null);
+  let position = null;
+  if (valid.length >= 2) {
+    const minV = Math.min(...valid);
+    const maxV = Math.max(...valid);
+    const cur  = validPoints.length ? validPoints[validPoints.length-1].v : valid[valid.length-1];
+    const pos  = maxV === minV ? 50 : Math.round((cur - minV) / (maxV - minV) * 100);
+    position = { pos, minV, maxV, cur };
+  }
+
+  // 거래량: 최근 3개월 vs 이전 3개월
+  const volMonths = months.slice(-6);
+  let volume = null;
+  if (trades.length) {
+    const year = m => m.slice(0,4);
+    const mon  = m => m.slice(4,6).replace(/^0/,'');
+    const countInMonth = m => trades.filter(t => t.dealYear===year(m) && parseInt(t.dealMonth)===parseInt(mon(m))).length;
+    const recentVol = volMonths.slice(-3).map(countInMonth).reduce((a,b)=>a+b,0);
+    const prevVol   = volMonths.slice(0,3).map(countInMonth).reduce((a,b)=>a+b,0);
+    volume = { recent: recentVol, prev: prevVol };
+  }
+
+  return { trend, position, volume };
+}
+
+function updateAnalysisCards(side, trades) {
+  const analysis = calcAnalysis(trades);
+
+  // 추세 카드
+  const trendCard = document.getElementById('cardTrend' + side);
+  const trendEl   = document.getElementById('trend' + side + 'Content');
+  trendCard.classList.add('visible');
+
+  if (analysis.trend) {
+    const { pct, dir, periodLabel } = analysis.trend;
+    const arrow = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '→';
+    const sign  = pct > 0 ? '+' : '';
+    trendEl.innerHTML = `
+      <div class="card-value" style="color:var(--${dir==='up'?'b':dir==='down'?'a':'amber'})">${arrow} <span style="font-size:20px">${sign}${pct}%</span></div>
+      <div class="card-sub">${periodLabel} · 월평균가 기준</div>`;
+  } else {
+    trendEl.innerHTML = `<div class="card-value" style="color:var(--text3)">—</div><div class="card-sub">데이터 부족 (거래 없음)</div>`;
+  }
+
+  // 위치 카드
+  const posCard = document.getElementById('cardPos' + side);
+  const posEl   = document.getElementById('pos' + side + 'Content');
+  posCard.classList.add('visible');
+
+  if (analysis.position) {
+    const { pos, minV, maxV } = analysis.position;
+    const minFmt = formatEok(minV);
+    const maxFmt = formatEok(maxV);
+    const posLabel = pos <= 20 ? '저점 근처' : pos >= 80 ? '고점 근처' : '중간';
+    const sideL = side.toLowerCase();
+    posEl.innerHTML = `
+      <div class="card-value">${pos}<span class="unit">%</span></div>
+      <div class="card-sub">${minFmt.value}${minFmt.unit} ↔ ${maxFmt.value}${maxFmt.unit} · ${posLabel}</div>
+      <div class="rate-bar"><div class="rate-fill-${sideL}" style="width:${pos}%"></div></div>`;
+  } else {
+    posEl.innerHTML = `<div class="card-value" style="color:var(--text3)">—</div><div class="card-sub">데이터 부족</div>`;
+  }
+
+  return analysis;
+}
+
+function generateSummary() {
+  const summaryEl = document.getElementById('analysisSummary');
+  const contentEl = document.getElementById('summaryContent');
+
+  const hasA = state.A.trades.length > 0;
+  const hasB = state.B.trades.length > 0;
+  if (!hasA && !hasB) { summaryEl.style.display = 'none'; return; }
+
+  const months = getLastNMonths(24);
+
+  function buildBlock(side, trades, jeonse) {
+    if (!trades.length) return '';
+    const a = calcAnalysis(trades);
+    const aptName = state[side].aptName || '';
+    const area = state[side].area || '';
+
+    let lines = [];
+
+    // 준공연도
+    const buildYr = state[side].buildYear;
+    if (buildYr) {
+      const age = new Date().getFullYear() - parseInt(buildYr);
+      lines.push(`준공: <span class="hl">${buildYr}년</span> (약 ${age}년 경과)`);
+    }
+
+    // 추세
+    if (a.trend) {
+      const { pct, dir, rAvg, periodLabel } = a.trend;
+      const sign = pct > 0 ? '+' : '';
+      const dirTxt = dir === 'up' ? `<span class="up">↑ 상승</span>` : dir === 'down' ? `<span class="down">↓ 하락</span>` : `<span class="neutral">→ 보합</span>`;
+      const rFmt = formatEok(Math.round(rAvg));
+      lines.push(`추세: ${dirTxt} <span class="hl">${sign}${pct}%</span> · 최근 평균 <span class="hl">${rFmt.value}${rFmt.unit}</span> <span style="color:var(--text3);font-size:11px">(${periodLabel})</span>`);
+    }
+
+    // 가격 위치
+    if (a.position) {
+      const { pos, minV, maxV } = a.position;
+      const minFmt = formatEok(Math.round(minV));
+      const maxFmt = formatEok(Math.round(maxV));
+      const posLabel = pos <= 20 ? `<span class="down">저점 근처 (${pos}%)</span>` : pos >= 80 ? `<span class="up">고점 근처 (${pos}%)</span>` : `중간 (${pos}%)`;
+      lines.push(`24개월 범위: ${minFmt.value}${minFmt.unit} ~ ${maxFmt.value}${maxFmt.unit} · 현재위치 ${posLabel}`);
+    }
+
+    // 전세가율
+    if (jeonse && jeonse.length && trades.length) {
+      const tradeAvg = trades.map(t=>parseInt(t.dealAmount.replace(/,/g,''))).reduce((a,b)=>a+b,0)/trades.length;
+      const jeonseAvg = jeonse.map(t=>parseInt(t.deposit.replace(/,/g,''))).filter(p=>p>0).reduce((a,b)=>a+b,0)/jeonse.length;
+      if (jeonseAvg > 0) {
+        const ratio = Math.round(jeonseAvg/tradeAvg*100);
+        const ratioLabel = ratio >= 70 ? `<span class="down">${ratio}% (높음 · 안정권)</span>` : ratio >= 55 ? `<span class="hl">${ratio}%</span>` : `<span class="up">${ratio}% (낮음 · 주의)</span>`;
+        lines.push(`전세가율: ${ratioLabel}`);
+      }
+    }
+
+    // 거래량
+    if (a.volume) {
+      const { recent, prev } = a.volume;
+      const volTrend = recent > prev * 1.3 ? `<span class="up">↑ 증가 (${recent}건/3개월)</span>` : recent < prev * 0.7 ? `<span class="down">↓ 감소 (${recent}건/3개월)</span>` : `보합 (${recent}건/3개월)`;
+      lines.push(`거래량: ${volTrend}`);
+    }
+
+    // 시그널
+    let signal = '';
+    if (a.trend && a.position) {
+      const { pos, minV, maxV } = a.position;
+      const { dir, pct } = a.trend;
+      const sign = pct > 0 ? '+' : '';
+      if (pos <= 25 && dir === 'down') {
+        signal = `<div class="signal-box signal-buy">🔵 24개월 저점 부근(${pos}%)에서 추가 하락 중(${sign}${pct}%). 아직 바닥 확인 안 됨 — 분할 접근 고려</div>`;
+      } else if (pos <= 25) {
+        signal = `<div class="signal-box signal-buy">🔵 24개월 저점 부근(${pos}%), 가격 안정세. 하방이 제한적인 구간 — 진입 검토 가능</div>`;
+      } else if (pos <= 45 && dir === 'down') {
+        signal = `<div class="signal-box signal-buy">🔵 저가권(${pos}%) 하락 중(${sign}${pct}%). 추가 조정 가능성 있음 — 분할매수로 평균단가 관리</div>`;
+      } else if (pos >= 80 && dir === 'up') {
+        signal = `<div class="signal-box signal-watch">🔴 24개월 고점 부근(${pos}%)에서 계속 상승 중(${sign}${pct}%). 지금 진입 시 고점 매수 위험 — 조정 후 재진입 검토</div>`;
+      } else if (pos >= 80) {
+        signal = `<div class="signal-box signal-caution">🟡 24개월 고점 부근(${pos}%), 상승 모멘텀 약화. 추가 상승 여력 제한적 — 보유자는 익절 시점 고려</div>`;
+      } else if (pos >= 60 && dir === 'up') {
+        signal = `<div class="signal-box signal-caution">🟡 고가권(${pos}%) 상승 중(${sign}${pct}%). 단기 모멘텀은 있으나 고점 인접 — 추격보다 눌림목 대기</div>`;
+      } else if (dir === 'flat' || Math.abs(pct) <= 1) {
+        signal = `<div class="signal-box signal-caution">🟡 중간 구간(${pos}%) 보합세(${sign}${pct}%). 방향성 미형성 — 추세 확인 후 진입 판단</div>`;
+      } else {
+        signal = `<div class="signal-box signal-caution">🟡 중간 구간(${pos}%), ${dir === 'up' ? '상승' : '하락'} 중(${sign}${pct}%). 추가 데이터 축적 후 판단 권장</div>`;
+      }
+    }
+
+    const sideL = side.toLowerCase();
+    return `
+      <div class="summary-block side-${sideL}">
+        <div class="summary-block-title">단지 ${side} &nbsp;·&nbsp; ${aptName} ${area}㎡</div>
+        ${lines.map(l => `<div class="summary-line">· ${l}</div>`).join('')}
+        ${signal}
+      </div>`;
+  }
+
+  // ── 전세가율 계산 헬퍼 ──
+  function calcJeonseRatio(jeonse, trades) {
+    if (!jeonse || !jeonse.length || !trades || !trades.length) return null;
+    const tradeAvg  = trades.map(t => parseInt(t.dealAmount.replace(/,/g,''))).reduce((a,b)=>a+b,0) / trades.length;
+    const jPrices   = jeonse.map(t => parseInt(t.deposit.replace(/,/g,''))).filter(p => p > 0);
+    if (!jPrices.length) return null;
+    const jAvg = jPrices.reduce((a,b)=>a+b,0) / jPrices.length;
+    return Math.round(jAvg / tradeAvg * 100);
+  }
+
+  // ── 밸류에이션 점수 & 의견 ──
+  function getValuation(analysis, jeonseRatio, aptName, buildYear) {
+    let score = 0;
+    let factors = [];
+
+    // 1. 전세가율
+    if (jeonseRatio !== null) {
+      if (jeonseRatio >= 70)      { score -= 2; factors.push(`전세가율 ${jeonseRatio}% — 하방 지지 강함`); }
+      else if (jeonseRatio >= 60) { score -= 1; factors.push(`전세가율 ${jeonseRatio}% — 양호`); }
+      else if (jeonseRatio >= 50) { score += 0; factors.push(`전세가율 ${jeonseRatio}% — 적정`); }
+      else if (jeonseRatio >= 40) { score += 1; factors.push(`전세가율 ${jeonseRatio}% — 낮음, 갭 주의`); }
+      else                        { score += 2; factors.push(`전세가율 ${jeonseRatio}% — 매우 낮음, 갭 위험`); }
+    } else {
+      factors.push('전세가율 — 데이터 없음 (별도 API 필요)');
+    }
+
+    // 2. 24개월 가격 위치
+    if (analysis && analysis.position) {
+      const { pos, minV, maxV } = analysis.position;
+      const minF = formatEok(Math.round(minV)), maxF = formatEok(Math.round(maxV));
+      if      (pos <= 20) { score -= 2; factors.push(`가격 위치 ${pos}% — 24개월 저점 근처 (${minF.value}${minF.unit} 부근)`); }
+      else if (pos <= 40) { score -= 1; factors.push(`가격 위치 ${pos}% — 저가권`); }
+      else if (pos <= 60) { score += 0; factors.push(`가격 위치 ${pos}% — 중간 구간`); }
+      else if (pos <= 80) { score += 1; factors.push(`가격 위치 ${pos}% — 고가권`); }
+      else                { score += 2; factors.push(`가격 위치 ${pos}% — 24개월 고점 근처 (${maxF.value}${maxF.unit} 부근)`); }
+    }
+
+    // 3. 가격 추세
+    if (analysis && analysis.trend) {
+      const { dir, pct } = analysis.trend;
+      if      (pct < -8)  { score -= 1; factors.push(`추세 강한 하락 (${pct}%) — 저점 탐색 중`); }
+      else if (pct < -0.5){ score += 0; factors.push(`추세 하락 (${pct}%) — 가격 조정 중`); }
+      else if (pct <= 0.5){ score += 0; factors.push(`추세 보합 (${pct}%)`); }
+      else if (pct < 5)   { score += 1; factors.push(`추세 상승 (+${pct}%) — 매수세 유입`); }
+      else                { score += 2; factors.push(`추세 강한 상승 (+${pct}%) — 과열 주의`); }
+    }
+
+    // 4. 건물 연령 (참고용)
+    if (buildYear) {
+      const age = new Date().getFullYear() - parseInt(buildYear);
+      const ageNote = age >= 25 ? ' — 재건축 기대감 가능' : age <= 5 ? ' — 신축 프리미엄' : '';
+      factors.push(`준공 ${buildYear}년 (${age}년 경과)${ageNote}`);
+    }
+
+    // 판정
+    let label, icon, bg, txt, opinion;
+    if (score <= -4) {
+      label = '저평가'; icon = '🔵'; bg = 'rgba(74,144,226,0.15)'; txt = '#4a90e2';
+      opinion = '전세가율·가격 위치 기준으로 현재 저평가 구간으로 판단됩니다. 장기 보유 관점에서 진입 검토가 가능한 시점입니다.';
+    } else if (score <= -2) {
+      label = '저가권'; icon = '🟢'; bg = 'rgba(34,197,94,0.12)'; txt = '#22c55e';
+      opinion = '가격이 24개월 저가 대비 낮은 수준에 위치해 있습니다. 전세가율 등 안정성 지표를 추가 확인 후 진입을 고려해 볼 수 있습니다.';
+    } else if (score <= 1) {
+      label = '적정가'; icon = '⚪'; bg = 'rgba(156,163,175,0.12)'; txt = '#9ca3af';
+      opinion = '현재 가격은 24개월 평균 구간 내 적정 수준입니다. 명확한 진입·회피 시그널은 없으며, 추가 데이터 축적 후 판단을 권장합니다.';
+    } else if (score <= 3) {
+      label = '고가권'; icon = '🟡'; bg = 'rgba(245,166,35,0.12)'; txt = '#f5a623';
+      opinion = '현재 가격이 24개월 고가 구간에 위치하거나 상승 추세가 지속되고 있습니다. 추격 매수보다는 조정 시 진입 전략이 유리합니다.';
+    } else {
+      label = '고평가'; icon = '🔴'; bg = 'rgba(226,90,74,0.12)'; txt = '#e25a4a';
+      opinion = '다수 지표가 고평가를 가리킵니다. 전세가율 대비 매매가가 높고 고점 근처에 위치해 있어 신규 진입 시 리스크가 큽니다.';
+    }
+
+    return { label, icon, bg, txt, score, factors, opinion };
+  }
+
+  // A-B 비교
+  function buildCompare() {
+    if (!hasA || !hasB) return '';
+    const monthlyA = buildMonthlyData(state.A.trades, months);
+    const monthlyB = buildMonthlyData(state.B.trades, months);
+
+    // 월별 격차 계산 (둘 다 데이터 있는 달만)
+    const diffs = months.map((_, i) => {
+      const a = monthlyA[i], b = monthlyB[i];
+      return (a !== null && b !== null) ? (a - b) : null;
+    }).filter(v => v !== null);
+
+    if (!diffs.length) return '';
+
+    const latestDiff = diffs[diffs.length - 1];
+    const prevDiff   = diffs.length >= 4 ? diffs[diffs.length - 4] : diffs[0];
+    const diffFmt    = formatEok(Math.abs(Math.round(latestDiff)));
+    const diffSign   = latestDiff >= 0 ? 'A가 더 비쌈' : 'B가 더 비쌈';
+    const gapChange  = latestDiff - prevDiff;
+    const gapTrend   = Math.abs(gapChange) < 100 ? '격차 유지' :
+                       (latestDiff >= 0 ? (gapChange > 0 ? 'A가 더 벌어짐' : 'A와 B 격차 좁혀짐') :
+                                          (gapChange < 0 ? 'B가 더 벌어짐' : 'A와 B 격차 좁혀짐'));
+
+    const prevFmt = formatEok(Math.abs(Math.round(prevDiff)));
+
+    return `
+      <div class="summary-block compare">
+        <div class="summary-block-title">A vs B 비교</div>
+        <div class="summary-line">· 현재 가격차: <span class="hl">${diffFmt.value}${diffFmt.unit}</span> (${diffSign})</div>
+        <div class="summary-line">· 3개월 전 가격차: ${prevFmt.value}${prevFmt.unit} → <span class="hl">${gapTrend}</span></div>
+      </div>`;
+  }
+
+  // ── 종합 밸류에이션 섹션 ──
+  function buildValuationSection() {
+    const sides = [];
+    if (hasA) sides.push('A');
+    if (hasB) sides.push('B');
+    if (!sides.length) return '';
+
+    const cards = sides.map(side => {
+      const trades = state[side].trades;
+      const jeonse = state[side].jeonse || [];
+      const an = calcAnalysis(trades);
+      const jRatio = calcJeonseRatio(jeonse, trades);
+      const apt = state[side].aptName || `단지 ${side}`;
+      const v = getValuation(an, jRatio, apt, state[side].buildYear);
+      const sideL = side.toLowerCase();
+
+      return `
+        <div class="valuation-card side-${sideL}">
+          <div class="valuation-verdict-row">
+            <div class="verdict-badge" style="background:${v.bg};color:${v.txt}">${v.icon} ${v.label}</div>
+            <div class="verdict-name">단지 ${side} · ${apt}</div>
+          </div>
+          <div class="verdict-factors">
+            ${v.factors.map(f => `<div>· ${f}</div>`).join('')}
+          </div>
+          <div class="verdict-opinion">${v.opinion}</div>
+        </div>`;
+    }).join('');
+
+    // A·B 둘 다 있을 때 비교 결론
+    let conclusion = '';
+    if (hasA && hasB) {
+      const anA = calcAnalysis(state.A.trades);
+      const anB = calcAnalysis(state.B.trades);
+      const vA  = getValuation(anA, calcJeonseRatio(state.A.jeonse||[], state.A.trades), state.A.aptName||'A', state.A.buildYear);
+      const vB  = getValuation(anB, calcJeonseRatio(state.B.jeonse||[], state.B.trades), state.B.aptName||'B', state.B.buildYear);
+
+      let compText = '';
+      const diff = vA.score - vB.score;
+      if (diff <= -2) {
+        compText = `A가 B 대비 <strong>상대적으로 저평가</strong>되어 있습니다. 동일 예산이라면 A 진입이 더 유리한 조건으로 판단됩니다.`;
+      } else if (diff >= 2) {
+        compText = `B가 A 대비 <strong>상대적으로 저평가</strong>되어 있습니다. 동일 예산이라면 B 진입이 더 유리한 조건으로 판단됩니다.`;
+      } else {
+        // 두 단지의 밸류에이션 점수가 비슷한 경우 — 점수 자체도 표시
+        const absA = Math.abs(vA.score), absB = Math.abs(vB.score);
+        const bothLow  = vA.score <= 0 && vB.score <= 0;
+        const bothHigh = vA.score >= 0 && vB.score >= 0;
+        if (bothLow) {
+          compText = `두 단지 모두 <strong>저가권 또는 적정가</strong> 구간으로 평가됩니다. 가격 메리트는 비슷하며, 입지·학군·관리비 등 비계량 요소로 결정하세요.`;
+        } else if (bothHigh) {
+          compText = `두 단지 모두 <strong>고가권 또는 적정가</strong> 구간으로 평가됩니다. 두 곳 모두 적극 매수보다 관망이 유리한 시점입니다.`;
+        } else {
+          compText = `두 단지의 저/고평가 <strong>점수 차이가 크지 않습니다</strong> (A: ${vA.score > 0 ? '+' : ''}${vA.score}점, B: ${vB.score > 0 ? '+' : ''}${vB.score}점). 입지·학군·관리비 등 비계량 요소를 추가로 비교해 선택하세요.`;
+        }
+      }
+
+      // 전세가율 보유 여부에 따른 보충 코멘트
+      const hasJeonseA = (state.A.jeonse||[]).length > 0;
+      const hasJeonseB = (state.B.jeonse||[]).length > 0;
+      const noJeonseNote = (!hasJeonseA || !hasJeonseB)
+        ? ` ※ 전세가 API 미연동 단지는 전세가율 없이 산출된 점수입니다.`
+        : '';
+
+      conclusion = `
+        <div class="valuation-conclusion">
+          <strong>▶ 비교 결론</strong><br>${compText}${noJeonseNote}
+        </div>`;
+    }
+
+    return `
+      <div class="summary-block valuation">
+        <div class="summary-block-title">📊 종합 밸류에이션 의견</div>
+        <div class="valuation-row">${cards}</div>
+        ${conclusion}
+      </div>`;
+  }
+
+  const blockA    = buildBlock('A', state.A.trades, state.A.jeonse || []);
+  const blockB    = buildBlock('B', state.B.trades, state.B.jeonse || []);
+  const compare   = buildCompare();
+  const valuation = buildValuationSection();
+
+  contentEl.innerHTML = blockA + blockB + compare + valuation;
+  summaryEl.style.display = 'block';
+}
+
+// ─────────────────────────────────────────────
+//  SUMMARY CARDS
+// ─────────────────────────────────────────────
+function updateSummaryCard(side, trades) {
+  const card = document.getElementById('card' + side);
+  const valEl = document.getElementById('val' + side);
+  const subEl = document.getElementById('sub' + side);
+
+  if (!trades.length) {
+    valEl.textContent = '—';
+    subEl.textContent = '거래 없음';
+    card.classList.add('visible');
+    updateDiffCard();
+    return;
+  }
+
+  // Latest trade by date
+  const sorted = [...trades].sort((a, b) => {
+    const da = `${a.dealYear}${a.dealMonth.padStart(2,'0')}${a.dealDay.padStart(2,'0')}`;
+    const db = `${b.dealYear}${b.dealMonth.padStart(2,'0')}${b.dealDay.padStart(2,'0')}`;
+    return db.localeCompare(da);
+  });
+
+  const latest = sorted[0];
+  const price = parseInt(latest.dealAmount.replace(/,/g, ''));
+  const fmt = formatEok(price);
+
+  valEl.innerHTML = `${fmt.value}<span class="unit">${fmt.unit}</span>`;
+  const buildYr = state[side].buildYear;
+  const buildInfo = buildYr ? ` · ${buildYr}년 준공` : '';
+  subEl.textContent = `${latest.dealYear}.${latest.dealMonth.padStart(2,'0')}.${latest.dealDay.padStart(2,'0')} · ${latest.floor}층${buildInfo}`;
+
+  card.classList.add('visible');
+  updateDiffCard();
+}
+
+function updateDiffCard() {
+  const card = document.getElementById('cardDiff');
+  const valEl = document.getElementById('valDiff');
+  const subEl = document.getElementById('subDiff');
+
+  const priceA = getLatestPrice('A');
+  const priceB = getLatestPrice('B');
+
+  if (priceA === null || priceB === null) {
+    valEl.innerHTML = '—';
+    valEl.className = 'card-value';
+    subEl.textContent = '두 단지 모두 선택 필요';
+    card.classList.add('visible');
+    return;
+  }
+
+  const diff = priceA - priceB;
+  const fmt = formatEok(Math.abs(diff));
+  const sign = diff >= 0 ? '+' : '−';
+  valEl.innerHTML = `${sign}${fmt.value}<span class="unit">${fmt.unit}</span>`;
+  valEl.className = 'card-value ' + (diff >= 0 ? 'positive' : 'negative');
+  subEl.textContent = diff >= 0 ? 'A가 더 비쌈' : 'B가 더 비쌈';
+  card.classList.add('visible');
+}
+
+function getLatestPrice(side) {
+  const trades = state[side].trades;
+  if (!trades || !trades.length) return null;
+  const sorted = [...trades].sort((a, b) => {
+    const da = `${a.dealYear}${a.dealMonth.padStart(2,'0')}${a.dealDay.padStart(2,'0')}`;
+    const db = `${b.dealYear}${b.dealMonth.padStart(2,'0')}${b.dealDay.padStart(2,'0')}`;
+    return db.localeCompare(da);
+  });
+  return parseInt(sorted[0].dealAmount.replace(/,/g, ''));
+}
+
+// ─────────────────────────────────────────────
+//  CHART
+// ─────────────────────────────────────────────
+function renderChart() {
+  const months = getLastNMonths(24);
+  const labels = months.map(ym => `${ym.slice(0,4)}.${ym.slice(4,6)}`);
+
+  const dataA = buildMonthlyData(state.A.trades, months);
+  const dataB = buildMonthlyData(state.B.trades, months);
+
+  const hasA = dataA.some(v => v !== null);
+  const hasB = dataB.some(v => v !== null);
+
+  document.getElementById('chartEmpty').style.display = (hasA || hasB) ? 'none' : 'block';
+  if (!hasA && !hasB) return;
+
+  const dataAj = buildMonthlyJeonse(state.A.jeonse || [], months);
+  const dataBj = buildMonthlyJeonse(state.B.jeonse || [], months);
+  const hasAj = dataAj.some(v => v !== null);
+  const hasBj = dataBj.some(v => v !== null);
+
+  const datasets = [];
+  if (hasA) {
+    datasets.push({
+      _side: 'A', _type: 'trade',
+      label: `A 매매 (${state.A.aptName || ''} ${state.A.area || ''}㎡)`,
+      data: dataA.map(v => v !== null ? v / 10000 : null),
+      borderColor: '#4A90E2',
+      backgroundColor: 'rgba(74,144,226,0.06)',
+      fill: true,
+      tension: 0.3,
+      borderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      spanGaps: true,
+    });
+  }
+  if (hasAj) {
+    datasets.push({
+      _side: 'A', _type: 'jeonse',
+      label: `A 전세`,
+      data: dataAj.map(v => v !== null ? v / 10000 : null),
+      borderColor: 'rgba(74,144,226,0.7)',
+      backgroundColor: 'transparent',
+      fill: false,
+      tension: 0.3,
+      borderWidth: 1.5,
+      borderDash: [6, 4],
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      spanGaps: true,
+    });
+  }
+  if (hasB) {
+    datasets.push({
+      _side: 'B', _type: 'trade',
+      label: `B 매매 (${state.B.aptName || ''} ${state.B.area || ''}㎡)`,
+      data: dataB.map(v => v !== null ? v / 10000 : null),
+      borderColor: '#E25A4A',
+      backgroundColor: 'rgba(226,90,74,0.06)',
+      fill: true,
+      tension: 0.3,
+      borderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      spanGaps: true,
+    });
+  }
+  if (hasBj) {
+    datasets.push({
+      _side: 'B', _type: 'jeonse',
+      label: `B 전세`,
+      data: dataBj.map(v => v !== null ? v / 10000 : null),
+      borderColor: 'rgba(226,90,74,0.7)',
+      backgroundColor: 'transparent',
+      fill: false,
+      tension: 0.3,
+      borderWidth: 1.5,
+      borderDash: [6, 4],
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      spanGaps: true,
+    });
+  }
+
+  // Y축 범위를 모든 데이터 포인트가 보이도록 계산
+  const allVals = datasets.flatMap(d => d.data.filter(v => v !== null));
+  const yMin = Math.min(...allVals);
+  const yMax = Math.max(...allVals);
+  const yPad = Math.max((yMax - yMin) * 0.15, 0.3);
+  const yAxisOpts = {
+    min: Math.floor((yMin - yPad) * 10) / 10,
+    max: Math.ceil((yMax + yPad) * 10) / 10,
+    grid: { color: 'rgba(255,255,255,0.04)' },
+    ticks: { color: '#555', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => v.toFixed(1) + '억' },
+  };
+
+  const ctx = document.getElementById('myChart').getContext('2d');
+
+  if (chart) {
+    chart.data.labels = labels;
+    chart.data.datasets = datasets;
+    chart.options.scales.y.min = yAxisOpts.min;
+    chart.options.scales.y.max = yAxisOpts.max;
+    chart.update();
+  } else {
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#222',
+            borderColor: '#333',
+            borderWidth: 1,
+            titleColor: '#888',
+            bodyColor: '#e8e6e0',
+            titleFont: { family: 'IBM Plex Mono', size: 11 },
+            bodyFont: { family: 'IBM Plex Mono', size: 12 },
+            callbacks: {
+              label(ctx) {
+                if (ctx.parsed.y === null) return null;
+                const ds = ctx.dataset;
+                const type = ds._type;
+                const side = ds._side;
+                if (type === 'jeonse') {
+                  // 같은 인덱스의 매매가 찾아서 전세가율 계산
+                  const tradeDs = ctx.chart.data.datasets.find(d => d._side === side && d._type === 'trade');
+                  const tradeVal = tradeDs ? tradeDs.data[ctx.dataIndex] : null;
+                  const ratio = (tradeVal && tradeVal > 0) ? Math.round((ctx.parsed.y / tradeVal) * 100) : null;
+                  return ` ${side} 전세: ${ctx.parsed.y.toFixed(2)}억${ratio !== null ? ` (${ratio}%)` : ''}`;
+                }
+                return ` ${side} 매매: ${ctx.parsed.y.toFixed(2)}억`;
+              },
+              afterBody(items) {
+                const tradePts = items.filter(i => i.parsed.y !== null && i.dataset._type === 'trade');
+                if (tradePts.length === 2) {
+                  const diff = tradePts[0].parsed.y - tradePts[1].parsed.y;
+                  const sign = diff >= 0 ? '+' : '';
+                  return [`─────────`, ` 매매 차액(A-B): ${sign}${diff.toFixed(2)}억`];
+                }
+                return [];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255,255,255,0.04)' },
+            ticks: { color: '#555', font: { family: 'IBM Plex Mono', size: 10 } },
+          },
+          y: yAxisOpts,
+        }
+      }
+    });
+  }
+
+  document.getElementById('chartPanel').classList.add('visible');
+}
+
+function buildMonthlyData(trades, months) {
+  return months.map(ym => {
+    const year = ym.slice(0, 4);
+    const month = ym.slice(4, 6).replace(/^0/, '');
+    const monthTrades = trades.filter(t =>
+      t.dealYear === year && parseInt(t.dealMonth) === parseInt(month)
+    );
+    if (!monthTrades.length) return null;
+    const prices = monthTrades.map(t => parseInt(t.dealAmount.replace(/,/g, '')));
+    return Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+  });
+}
+
+function buildMonthlyJeonse(jeonse, months) {
+  return months.map(ym => {
+    const year = ym.slice(0, 4);
+    const month = ym.slice(4, 6).replace(/^0/, '');
+    const monthDeals = jeonse.filter(t =>
+      t.dealYear === year && parseInt(t.dealMonth) === parseInt(month)
+    );
+    if (!monthDeals.length) return null;
+    const prices = monthDeals.map(t => parseInt(t.deposit.replace(/,/g, ''))).filter(p => p > 0);
+    if (!prices.length) return null;
+    return Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  TABLE
+// ─────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('dealTbody');
+
+  const allDeals = [
+    ...state.A.trades.map(t => ({ ...t, _side: 'A' })),
+    ...state.B.trades.map(t => ({ ...t, _side: 'B' })),
+  ].sort((a, b) => {
+    const da = `${a.dealYear}${a.dealMonth.padStart(2,'0')}${a.dealDay.padStart(2,'0')}`;
+    const db = `${b.dealYear}${b.dealMonth.padStart(2,'0')}${b.dealDay.padStart(2,'0')}`;
+    return db.localeCompare(da);
+  }).slice(0, 10);
+
+  if (!allDeals.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:30px 0;font-family:var(--mono);font-size:12px;">거래 데이터 없음</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allDeals.map(t => {
+    const price = parseInt(t.dealAmount.replace(/,/g, ''));
+    const fmt = formatEok(price);
+    const badge = t._side === 'A'
+      ? `<span class="badge-a">A</span>`
+      : `<span class="badge-b">B</span>`;
+    const date = `${t.dealYear}.${t.dealMonth.padStart(2,'0')}.${t.dealDay.padStart(2,'0')}`;
+    const area = Math.round(parseFloat(t.excluUseAr));
+    return `<tr>
+      <td>${badge}</td>
+      <td>${date}</td>
+      <td>${fmt.value}${fmt.unit}</td>
+      <td>${area}㎡</td>
+      <td>${t.floor}층</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tablePanel').classList.add('visible');
+}
+
+// ─────────────────────────────────────────────
+//  UTILITIES
+// ─────────────────────────────────────────────
+function getLast12Months() { return getLastNMonths(12); } // 하위 호환
+function getLastNMonths(n) {
+  const months = [];
+  const now = new Date();
+  for (let i = 0; i < n; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return months.reverse();
+}
+
+function formatEok(manwon) {
+  // manwon → 억원 표기 (500만원 단위 반올림, 소수점 최대 2자리)
+  if (!manwon || manwon === 0) return { value: '—', unit: '' };
+  const rounded = Math.round(manwon / 500) * 500;   // 500만원 단위 반올림
+  const uk = rounded / 10000;
+  if (uk >= 1) {
+    const str = uk.toFixed(2).replace(/\.?0+$/, ''); // 후행 0 제거
+    return { value: str, unit: '억' };
+  }
+  return { value: `${rounded.toLocaleString()}`, unit: '만원' };
+}
+
+// ─────────────────────────────────────────────
+//  BOOTSTRAP
+// ─────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
